@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChartColumn, ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Amount, Eyebrow } from '@/components/shared'
+import { Amount, Eyebrow, PageHeader } from '@/components/shared'
 
 type Report = {
   month: string; income: number; expense: number; net: number
@@ -36,6 +36,15 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Home"
+        right={
+          <Button variant="outline" size="sm" render={<Link to="/reports" />}>
+            <ChartColumn data-icon="inline-start" />
+            Reports
+          </Button>
+        }
+      />
       {/* month spread */}
       <Card>
         <CardContent className="flex flex-col items-center pt-2">

@@ -68,6 +68,16 @@ api.put('/budgets/:categoryId', async (c) => {
 })
 
 api.get('/reports/monthly', async (c) => c.json(await reports.monthlyReport(hctx(c), c.req.query('month'))))
+api.get('/reports/overview', async (c) => {
+  const q = z.object({
+    period: z.enum(['week', 'month', 'quarter', 'year']).default('month'),
+    offset: z.coerce.number().int().min(-600).max(0).default(0),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  }).refine((v) => !!v.from === !!v.to, { message: 'from and to must be passed together' })
+    .parse(c.req.query())
+  return c.json(await reports.overviewReport(hctx(c), q))
+})
 
 api.get('/portfolio', async (c) => c.json(await portfolio.getPortfolio(hctx(c))))
 api.get('/instruments', async (c) => c.json(await portfolio.searchInstruments(c.req.query('search'))))

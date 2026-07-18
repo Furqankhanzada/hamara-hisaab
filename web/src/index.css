@@ -46,6 +46,9 @@
     /* ledger semantics: money-in / money-out */
     --color-inflow: var(--inflow);
     --color-outflow: var(--outflow);
+    /* chart series colors — CVD-validated pair, see dataviz validator */
+    --color-chart-in: var(--chart-in);
+    --color-chart-out: var(--chart-out);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -80,6 +83,8 @@
     --ring: oklch(0.55 0.07 166);
     --inflow: oklch(0.46 0.09 166);
     --outflow: oklch(0.5 0.155 27);
+    --chart-in: oklch(0.62 0.107 184);
+    --chart-out: oklch(0.55 0.145 33);
     --chart-1: oklch(0.42 0.085 166);
     --chart-2: oklch(0.6 0.07 166);
     --chart-3: oklch(0.75 0.05 160);
@@ -117,6 +122,8 @@
     --ring: oklch(0.6 0.07 166);
     --inflow: oklch(0.78 0.09 166);
     --outflow: oklch(0.7 0.14 27);
+    --chart-in: oklch(0.62 0.11 184);
+    --chart-out: oklch(0.6 0.14 27);
     --chart-1: oklch(0.78 0.09 166);
     --chart-2: oklch(0.6 0.07 166);
     --chart-3: oklch(0.45 0.05 160);

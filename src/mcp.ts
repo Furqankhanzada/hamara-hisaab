@@ -41,6 +41,14 @@ function buildServer(ctx: Ctx) {
 
   tool('get_monthly_report', 'Monthly summary: income, expense, net, category breakdown, per-member split, budget compare.',
     { month: z.string().optional().describe('YYYY-MM') }, (a: { month?: string }) => reports.monthlyReport(ctx, a.month))
+  tool('get_report', 'Weekly/monthly/quarterly/yearly or custom-range report: totals, previous-period comparison, income/expense trend buckets, category and member breakdowns.',
+    {
+      period: z.enum(['week', 'month', 'quarter', 'year']).default('month'),
+      offset: z.coerce.number().int().max(0).default(0).describe('0 = current period, -1 = previous, …'),
+      from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Custom range start (use with to; overrides period)'),
+      to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Custom range end, inclusive'),
+    },
+    (a: reports.OverviewOpts) => reports.overviewReport(ctx, a))
 
   tool('get_portfolio', 'Investment holdings with latest prices/NAVs, current value, cost and gain (PKR).',
     {}, () => portfolio.getPortfolio(ctx))

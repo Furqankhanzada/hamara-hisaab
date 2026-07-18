@@ -53,7 +53,10 @@ curl -X POST https://your-host/api/v1/transactions \
 
 Resources: `transactions`, `categories`, `budgets` (+ `/budgets/status`), `accounts`,
 `portfolio`, `holdings`, `instruments`, `prices` (+ `/prices/refresh`), `loans` (+ `/:id/payments`),
-`recurring`, `reports/monthly`, `zakat`, `household`. Amounts are PKR; dates are `YYYY-MM-DD` (Asia/Karachi).
+`recurring`, `reports/monthly`, `reports/overview?period=week|month|quarter|year&offset=-N`
+(or `?from=YYYY-MM-DD&to=YYYY-MM-DD` for a custom range — totals, previous-period comparison,
+trend buckets, category/member breakdowns; also the `get_report` MCP tool), `zakat`, `household`.
+Amounts are PKR; dates are `YYYY-MM-DD` (Asia/Karachi).
 
 ## Price data (automatic)
 
