@@ -50,7 +50,7 @@ function buildServer(ctx: Ctx) {
     },
     (a: reports.OverviewOpts) => reports.overviewReport(ctx, a))
 
-  tool('get_portfolio', 'Investment holdings with latest prices/NAVs, current value, cost and gain (PKR).',
+  tool('get_portfolio', "Investment holdings visible to you (your own + household-shared) with latest prices/NAVs, value, cost and gain (PKR). Wealth items are private per member by default; visibility: 'shared' exposes one to the household.",
     {}, () => portfolio.getPortfolio(ctx))
   tool('list_instruments', 'Search known instruments (PSX stocks, mutual funds, other assets).',
     { search: z.string().optional() }, (a: { search?: string }) => portfolio.searchInstruments(a.search))
@@ -64,15 +64,20 @@ function buildServer(ctx: Ctx) {
   tool('refresh_prices', 'Fetch latest PSX closing prices and MUFAP fund NAVs now.', {}, () => portfolio.refreshPrices())
 
   tool('add_loan', 'Record money lent to or borrowed from someone (qarz).', loans.loanInput.shape, (a) => loans.addLoan(ctx, loans.loanInput.parse(a)))
-  tool('list_loans', 'List loans with outstanding amounts; filter by status open|settled.',
+  tool('list_loans', 'List loans visible to you (your own + household-shared) with outstanding amounts; filter by status open|settled.',
     { status: z.enum(['open', 'settled']).optional() }, (a: { status?: 'open' | 'settled' }) => loans.listLoans(ctx, a.status))
   tool('record_loan_payment', 'Record a repayment against a loan (auto-settles when fully repaid).',
     { loan_id: z.string(), ...loans.loanPaymentInput.shape },
     async (a: { loan_id: string }) => (await loans.addLoanPayment(ctx, a.loan_id, loans.loanPaymentInput.parse(a))) ?? { error: 'not found' })
-  tool('update_loan', 'Settle a loan (any remainder counts as forgiven), reopen it, or update its note.',
-    { loan_id: z.string(), status: z.enum(['open', 'settled']).optional(), note: z.string().optional() },
-    async (a: { loan_id: string; status?: 'open' | 'settled'; note?: string }) =>
-      (await loans.updateLoan(ctx, a.loan_id, { status: a.status, note: a.note })) ?? { error: 'not found' })
+  tool('update_loan', 'Settle a loan (any remainder counts as forgiven), reopen it, update its note, or change its visibility.',
+    {
+      loan_id: z.string(),
+      status: z.enum(['open', 'settled']).optional(),
+      note: z.string().optional(),
+      visibility: z.enum(['shared', 'private']).optional(),
+    },
+    async (a: { loan_id: string; status?: 'open' | 'settled'; note?: string; visibility?: 'shared' | 'private' }) =>
+      (await loans.updateLoan(ctx, a.loan_id, { status: a.status, note: a.note, visibility: a.visibility })) ?? { error: 'not found' })
 
   tool('add_recurring', 'Create a recurring monthly bill/income rule (auto-logged on its due day).',
     recurring.recurringInput.shape, (a) => recurring.addRecurring(ctx, recurring.recurringInput.parse(a)))
@@ -81,13 +86,13 @@ function buildServer(ctx: Ctx) {
     { id: z.string(), ...recurring.recurringUpdate.shape },
     async (a: { id: string }) => (await recurring.updateRecurring(ctx, a.id, recurring.recurringUpdate.parse(a))) ?? { error: 'not found' })
 
-  tool('list_accounts', 'List cash/bank accounts with snapshot balances.', {}, () => accounts.listAccounts(ctx))
+  tool('list_accounts', 'List cash/bank accounts visible to you (your own + household-shared) with snapshot balances.', {}, () => accounts.listAccounts(ctx))
   tool('update_account_balance', 'Update a cash/bank account balance snapshot (or other fields).',
     { account_id: z.string(), ...accounts.accountUpdate.shape },
     async (a: { account_id: string }) => (await accounts.updateAccount(ctx, a.account_id, accounts.accountUpdate.parse(a))) ?? { error: 'not found' })
   tool('add_account', 'Create a cash/bank account.', accounts.accountInput.shape, (a) => accounts.addAccount(ctx, accounts.accountInput.parse(a)))
 
-  tool('get_zakat_summary', 'Zakatable assets vs nisab and computed 2.5% zakat due.', {}, () => zakat.zakatSummary(ctx))
+  tool('get_zakat_summary', 'Zakatable assets visible to you (your own + household-shared) vs nisab, and the computed 2.5% zakat due.', {}, () => zakat.zakatSummary(ctx))
   tool('set_zakat_settings', 'Set the nisab threshold (PKR) and next zakat due date.',
     zakat.zakatSettingsInput.shape, (a) => zakat.setZakatSettings(ctx, zakat.zakatSettingsInput.parse(a)))
 

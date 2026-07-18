@@ -93,7 +93,7 @@ export default function App() {
           <DrawerHeader>
             <DrawerTitle>New entry</DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className="mx-auto w-full max-w-lg px-4 pb-6">
             <TxForm onDone={() => setAddOpen(false)} />
           </div>
         </DrawerContent>

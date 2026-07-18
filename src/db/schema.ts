@@ -58,9 +58,11 @@ export const budgets = pgTable('budgets', {
 export const accounts = pgTable('accounts', {
   id: id(),
   householdId: text('household_id').notNull().references(() => households.id),
+  userId: text('user_id').references(() => user.id), // owner; null = visible to all (legacy safety)
   name: text('name').notNull(),
   balance: numeric('balance', { precision: 14, scale: 2 }).notNull().default('0'),
   zakatable: boolean('zakatable').notNull().default(true),
+  visibility: text('visibility', { enum: ['shared', 'private'] }).notNull().default('private'),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -81,6 +83,7 @@ export const holdings = pgTable('holdings', {
   units: numeric('units', { precision: 18, scale: 6 }).notNull(),
   avgCost: numeric('avg_cost', { precision: 14, scale: 4 }),
   zakatable: boolean('zakatable').notNull().default(true),
+  visibility: text('visibility', { enum: ['shared', 'private'] }).notNull().default('private'),
   note: text('note'),
 })
 
@@ -101,6 +104,7 @@ export const loans = pgTable('loans', {
   startDate: date('start_date').notNull(),
   note: text('note'),
   status: text('status', { enum: ['open', 'settled'] }).notNull().default('open'),
+  visibility: text('visibility', { enum: ['shared', 'private'] }).notNull().default('private'),
 })
 
 export const loanPayments = pgTable('loan_payments', {

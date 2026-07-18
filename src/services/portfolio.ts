@@ -1,9 +1,10 @@
-import { and, eq, ilike, or, sql } from 'drizzle-orm'
+import { and, eq, ilike, isNull, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/client'
 import { holdings, instruments, prices } from '../db/schema'
 import { todayPk } from '../util'
 import type { Ctx } from '../middleware'
+import { visibilityInput } from './accounts'
 import { fetchPsxClose } from './prices/psx'
 import { fetchMufapNavs, norm } from './prices/mufap'
 
@@ -20,6 +21,7 @@ export const holdingInput = z.object({
   units: z.coerce.number().positive().describe('Units/shares held (1 for lump assets like gold or property)'),
   avg_cost: z.coerce.number().positive().optional().describe('Average buy price per unit in PKR'),
   zakatable: z.boolean().default(true),
+  visibility: visibilityInput,
   note: z.string().optional(),
 })
 
@@ -27,6 +29,7 @@ export const holdingUpdate = z.object({
   units: z.coerce.number().min(0).optional().describe('New total units (0 deletes the holding)'),
   avg_cost: z.coerce.number().positive().optional(),
   zakatable: z.boolean().optional(),
+  visibility: visibilityInput.optional(),
   note: z.string().optional(),
 })
 
@@ -74,31 +77,36 @@ export async function addHolding(ctx: Ctx, input: z.infer<typeof holdingInput>) 
     units: input.units.toFixed(6),
     avgCost: input.avg_cost?.toFixed(4),
     zakatable: input.zakatable,
+    visibility: input.visibility,
     note: input.note,
   }).returning()
   return row
 }
 
+/** shared holdings, your own, and legacy unowned rows */
+const holdingVisibleTo = (userId: string) =>
+  or(eq(holdings.visibility, 'shared'), eq(holdings.userId, userId), isNull(holdings.userId))
+
 export async function updateHolding(ctx: Ctx, id: string, input: z.infer<typeof holdingUpdate>) {
+  const scope = and(eq(holdings.id, id), eq(holdings.householdId, ctx.householdId), holdingVisibleTo(ctx.userId))
   if (input.units === 0) {
-    const rows = await db.delete(holdings)
-      .where(and(eq(holdings.id, id), eq(holdings.householdId, ctx.householdId)))
-      .returning({ id: holdings.id })
+    const rows = await db.delete(holdings).where(scope).returning({ id: holdings.id })
     return rows.length ? { id, deleted: true } : null
   }
   const [row] = await db.update(holdings).set({
     units: input.units !== undefined ? input.units.toFixed(6) : undefined,
     avgCost: input.avg_cost !== undefined ? input.avg_cost.toFixed(4) : undefined,
     zakatable: input.zakatable,
+    visibility: input.visibility,
     note: input.note,
-  }).where(and(eq(holdings.id, id), eq(holdings.householdId, ctx.householdId))).returning()
+  }).where(scope).returning()
   return row ?? null
 }
 
 export async function getPortfolio(ctx: Ctx) {
   const { rows } = await db.execute(sql`
     select h.id as holding_id, i.id as instrument_id, i.kind, i.symbol, i.name,
-           h.units::float8 as units, h.avg_cost::float8 as avg_cost, h.zakatable, h.note,
+           h.units::float8 as units, h.avg_cost::float8 as avg_cost, h.zakatable, h.visibility, h.note,
            p.price::float8 as price, p.as_of::text as price_as_of, p.source as price_source,
            (h.units * p.price)::float8 as value,
            (h.units * h.avg_cost)::float8 as cost,
@@ -109,6 +117,7 @@ export async function getPortfolio(ctx: Ctx) {
       select price, as_of, source from prices where instrument_id = i.id order by as_of desc limit 1
     ) p on true
     where h.household_id = ${ctx.householdId}
+      and (h.visibility = 'shared' or h.user_id = ${ctx.userId} or h.user_id is null)
     order by value desc nulls last`)
   // gain only over priced holdings, so a missing NAV doesn't read as a loss
   const priced = rows.filter(r => r.value != null)

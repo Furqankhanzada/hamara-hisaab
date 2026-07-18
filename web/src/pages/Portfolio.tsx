@@ -15,11 +15,11 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import { Amount, Confirm, PageHeader } from '@/components/shared'
+import { Amount, Confirm, PageHeader, ShareSwitch } from '@/components/shared'
 
 type Holding = {
   holding_id: string; instrument_id: string; kind: string; symbol: string | null; name: string
-  units: number; avg_cost: number | null; zakatable: boolean; note: string | null
+  units: number; avg_cost: number | null; zakatable: boolean; visibility: 'shared' | 'private'; note: string | null
   price: number | null; price_as_of: string | null; price_source: string | null
   value: number | null; cost: number | null; gain: number | null
 }
@@ -90,6 +90,7 @@ export default function PortfolioPage() {
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   <span className="truncate">{h.name}</span>
                   {h.symbol && <Badge variant="secondary" className="amount">{h.symbol}</Badge>}
+                  {h.visibility === 'shared' && <Badge variant="outline">shared</Badge>}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
                   {Number(h.units).toLocaleString()} {Number(h.units) === 1 ? 'unit' : 'units'}
@@ -115,7 +116,7 @@ export default function PortfolioPage() {
           <DrawerHeader>
             <DrawerTitle>{managing?.name}</DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className="mx-auto w-full max-w-lg px-4 pb-6">
             {managing && <ManageHolding h={managing} onDone={() => setManaging(null)} />}
           </div>
         </DrawerContent>
@@ -126,7 +127,7 @@ export default function PortfolioPage() {
           <DrawerHeader>
             <DrawerTitle>Add holding</DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className="mx-auto w-full max-w-lg px-4 pb-6">
             <AddHolding onDone={() => setAdding(false)} />
           </div>
         </DrawerContent>
@@ -139,40 +140,53 @@ function ManageHolding({ h, onDone }: { h: Holding; onDone: () => void }) {
   const qc = useQueryClient()
   const [units, setUnits] = useState(String(h.units))
   const [price, setPrice] = useState('')
+  const [shared, setShared] = useState(h.visibility === 'shared')
   const done = (msg: string) => { qc.invalidateQueries({ queryKey: ['portfolio'] }); toast(msg); onDone() }
 
   return (
     <FieldGroup>
-      <form className="flex items-end gap-2" onSubmit={async (e) => {
+      <form onSubmit={async (e) => {
         e.preventDefault()
         await api(`/holdings/${h.holding_id}`, { method: 'PATCH', json: { units: Number(units) } })
         done('Units updated')
       }}>
-        <Field className="flex-1">
+        <Field>
           <FieldLabel htmlFor="units">Units held</FieldLabel>
-          <Input id="units" type="number" step="any" min="0" required className="amount"
-            value={units} onChange={(e) => setUnits(e.target.value)} />
+          <div className="flex gap-2">
+            <Input id="units" type="number" step="any" min="0" required className="amount flex-1"
+              value={units} onChange={(e) => setUnits(e.target.value)} />
+            <Button type="submit">Save</Button>
+          </div>
           <FieldDescription>After a buy or sell, set the new total.</FieldDescription>
         </Field>
-        <Button type="submit" className="mb-5.5">Save</Button>
       </form>
 
-      <form className="flex items-end gap-2" onSubmit={async (e) => {
+      <form onSubmit={async (e) => {
         e.preventDefault()
         await api('/prices', { method: 'POST', json: { instrument_id: h.instrument_id, price: Number(price) } })
         done('Price recorded')
       }}>
-        <Field className="flex-1">
+        <Field>
           <FieldLabel htmlFor="price">Today's price / valuation</FieldLabel>
-          <InputGroup>
-            <InputGroupAddon>Rs</InputGroupAddon>
-            <InputGroupInput id="price" type="number" step="any" min="0.0001" required className="amount"
-              placeholder={h.price != null ? String(h.price) : 'per unit'} value={price} onChange={(e) => setPrice(e.target.value)} />
-          </InputGroup>
+          <div className="flex gap-2">
+            <InputGroup className="flex-1">
+              <InputGroupAddon>Rs</InputGroupAddon>
+              <InputGroupInput id="price" type="number" step="any" min="0.0001" required className="amount"
+                placeholder={h.price != null ? String(h.price) : 'per unit'} value={price} onChange={(e) => setPrice(e.target.value)} />
+            </InputGroup>
+            <Button type="submit" variant="outline">Set</Button>
+          </div>
           <FieldDescription>Manual entries win over auto-fetched prices.</FieldDescription>
         </Field>
-        <Button type="submit" variant="outline" className="mb-5.5">Set</Button>
       </form>
+
+      <ShareSwitch checked={shared} onChange={async (v) => {
+        setShared(v)
+        await api(`/holdings/${h.holding_id}`, { method: 'PATCH', json: { visibility: v ? 'shared' : 'private' } })
+        qc.invalidateQueries({ queryKey: ['portfolio'] })
+        qc.invalidateQueries({ queryKey: ['zakat'] })
+        toast(v ? 'Now visible to the household' : 'Now private to you')
+      }} />
 
       <Confirm
         title={`Remove ${h.name}?`}
@@ -198,6 +212,7 @@ function AddHolding({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient()
   const [kind, setKind] = useState<'psx_stock' | 'mutual_fund' | 'other'>('psx_stock')
   const [form, setForm] = useState({ symbol: '', fund: '', name: '', units: '', cost: '' })
+  const [shared, setShared] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -213,6 +228,7 @@ function AddHolding({ onDone }: { onDone: () => void }) {
           },
           units: Number(form.units),
           avg_cost: form.cost ? Number(form.cost) : undefined,
+          visibility: shared ? 'shared' : 'private',
         },
       })
       qc.invalidateQueries({ queryKey: ['portfolio'] })
@@ -274,6 +290,7 @@ function AddHolding({ onDone }: { onDone: () => void }) {
           </Field>
         </div>
 
+        <ShareSwitch checked={shared} onChange={setShared} />
         <Button type="submit" className="w-full">Add holding</Button>
       </FieldGroup>
     </form>

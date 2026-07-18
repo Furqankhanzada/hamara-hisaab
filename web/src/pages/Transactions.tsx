@@ -92,7 +92,7 @@ export default function Transactions() {
           <DrawerHeader>
             <DrawerTitle>Edit entry</DrawerTitle>
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className="mx-auto w-full max-w-lg px-4 pb-6">
             {editing && <TxForm existing={editing} onDone={() => setEditing(null)} />}
           </div>
         </DrawerContent>

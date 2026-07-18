@@ -8,6 +8,13 @@
       "when": 1784386046330,
       "tag": "0000_legal_iceman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784400433154,
+      "tag": "0001_fluffy_blue_blade",
+      "breakpoints": true
     }
   ]
 }

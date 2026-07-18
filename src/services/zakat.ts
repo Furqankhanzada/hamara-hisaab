@@ -24,7 +24,8 @@ export async function setZakatSettings(ctx: Ctx, input: z.infer<typeof zakatSett
 export async function zakatSummary(ctx: Ctx) {
   const accounts = await db.execute(sql`
     select name, balance::float8 as value from accounts
-    where household_id = ${ctx.householdId} and zakatable = true`)
+    where household_id = ${ctx.householdId} and zakatable = true
+      and (visibility = 'shared' or user_id = ${ctx.userId} or user_id is null)`)
   const investments = await db.execute(sql`
     select i.name, (h.units * p.price)::float8 as value, p.as_of::text as price_as_of
     from holdings h
@@ -32,12 +33,14 @@ export async function zakatSummary(ctx: Ctx) {
     left join lateral (
       select price, as_of from prices where instrument_id = i.id order by as_of desc limit 1
     ) p on true
-    where h.household_id = ${ctx.householdId} and h.zakatable = true`)
+    where h.household_id = ${ctx.householdId} and h.zakatable = true
+      and (h.visibility = 'shared' or h.user_id = ${ctx.userId} or h.user_id is null)`)
   const debts = await db.execute(sql`
     select l.counterparty, (l.principal - coalesce(p.paid, 0))::float8 as value
     from loans l
     left join (select loan_id, sum(amount) as paid from loan_payments group by loan_id) p on p.loan_id = l.id
-    where l.household_id = ${ctx.householdId} and l.direction = 'borrowed' and l.status = 'open'`)
+    where l.household_id = ${ctx.householdId} and l.direction = 'borrowed' and l.status = 'open'
+      and (l.visibility = 'shared' or l.user_id = ${ctx.userId})`)
 
   const assetTotal =
     accounts.rows.reduce((s, r) => s + Number(r.value ?? 0), 0) +

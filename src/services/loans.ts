@@ -1,9 +1,10 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/client'
 import { loanPayments, loans } from '../db/schema'
 import { todayPk } from '../util'
 import type { Ctx } from '../middleware'
+import { visibilityInput } from './accounts'
 
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
@@ -12,8 +13,11 @@ export const loanInput = z.object({
   direction: z.enum(['lent', 'borrowed']).describe("'lent' = they owe us, 'borrowed' = we owe them"),
   principal: z.coerce.number().positive().describe('Amount in PKR'),
   start_date: dateStr.optional().describe('Defaults to today'),
+  visibility: visibilityInput,
   note: z.string().optional(),
 })
+
+const loanVisibleTo = (userId: string) => or(eq(loans.visibility, 'shared'), eq(loans.userId, userId))
 
 export const loanPaymentInput = z.object({
   amount: z.coerce.number().positive().describe('Repayment amount in PKR'),
@@ -29,6 +33,7 @@ export async function addLoan(ctx: Ctx, input: z.infer<typeof loanInput>) {
     direction: input.direction,
     principal: input.principal.toFixed(2),
     startDate: input.start_date ?? todayPk(),
+    visibility: input.visibility,
     note: input.note,
   }).returning()
   return { ...row, paid: 0, outstanding: Number(row.principal) }
@@ -42,7 +47,9 @@ export async function listLoans(ctx: Ctx, status?: 'open' | 'settled') {
            (l.principal - coalesce(p.paid, 0))::float8 as outstanding
     from loans l
     left join (select loan_id, sum(amount) as paid from loan_payments group by loan_id) p on p.loan_id = l.id
-    where l.household_id = ${ctx.householdId} ${status ? sql`and l.status = ${status}` : sql``}
+    where l.household_id = ${ctx.householdId}
+      and (l.visibility = 'shared' or l.user_id = ${ctx.userId})
+      ${status ? sql`and l.status = ${status}` : sql``}
     order by l.start_date desc`)
   return rows
 }
@@ -55,15 +62,15 @@ export async function getLoan(ctx: Ctx, id: string) {
   return { ...loan, payments }
 }
 
-export async function updateLoan(ctx: Ctx, id: string, patch: { status?: 'open' | 'settled'; note?: string }) {
+export async function updateLoan(ctx: Ctx, id: string, patch: { status?: 'open' | 'settled'; note?: string; visibility?: 'shared' | 'private' }) {
   const [row] = await db.update(loans).set(patch)
-    .where(and(eq(loans.id, id), eq(loans.householdId, ctx.householdId))).returning()
+    .where(and(eq(loans.id, id), eq(loans.householdId, ctx.householdId), loanVisibleTo(ctx.userId))).returning()
   return row ?? null
 }
 
 export async function addLoanPayment(ctx: Ctx, loanId: string, input: z.infer<typeof loanPaymentInput>) {
   const [loan] = await db.select().from(loans)
-    .where(and(eq(loans.id, loanId), eq(loans.householdId, ctx.householdId)))
+    .where(and(eq(loans.id, loanId), eq(loans.householdId, ctx.householdId), loanVisibleTo(ctx.userId)))
   if (!loan) return null
   await db.insert(loanPayments).values({
     loanId,

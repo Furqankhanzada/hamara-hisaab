@@ -16,7 +16,7 @@ import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Amount, Confirm, PageHeader } from '@/components/shared'
+import { Amount, Confirm, PageHeader, ShareSwitch } from '@/components/shared'
 import type { Me } from '../App'
 import type { Loan } from './Loans'
 
@@ -79,7 +79,10 @@ function HouseholdSection({ me }: { me: Me }) {
     <Card>
       <CardHeader>
         <CardTitle>Household · {h.name}</CardTitle>
-        <CardDescription>Everyone here shares one ledger; entries show who paid.</CardDescription>
+        <CardDescription>
+          The expense ledger and budgets are shared; entries show who paid. Wealth items — accounts,
+          investments, loans — are private to each member unless marked shared.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {h.members.map((m) => (
@@ -178,30 +181,42 @@ function ApiKeysSection() {
   )
 }
 
-type Account = { id: string; name: string; balance: string; zakatable: boolean }
+type Account = { id: string; name: string; balance: string; zakatable: boolean; visibility: 'shared' | 'private' }
 function AccountsSection() {
   const qc = useQueryClient()
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => api<Account[]>('/accounts') })
   const [form, setForm] = useState({ name: '', balance: '' })
+  const [shared, setShared] = useState(false)
   const [editing, setEditing] = useState<{ id: string; balance: string } | null>(null)
-  const inval = () => qc.invalidateQueries({ queryKey: ['accounts'] })
+  const inval = () => { qc.invalidateQueries({ queryKey: ['accounts'] }); qc.invalidateQueries({ queryKey: ['zakat'] }) }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Cash & bank accounts</CardTitle>
-        <CardDescription>Snapshot balances — tap one to update it. Counted for zakat.</CardDescription>
+        <CardDescription>Snapshot balances — tap one to update it. Counted for zakat. Private to you unless shared.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {(accounts.data ?? []).map((a) => (
           <div key={a.id} className="flex min-h-9 items-center justify-between gap-2">
-            <span className="text-sm">{a.name}</span>
+            <span className="flex items-center gap-1.5 text-sm">
+              {a.name}
+              {a.visibility === 'shared' && <Badge variant="outline">shared</Badge>}
+            </span>
             {editing?.id === a.id ? (
               <form className="flex items-center gap-1.5" onSubmit={async (e) => {
                 e.preventDefault()
                 await api(`/accounts/${a.id}`, { method: 'PATCH', json: { balance: Number(editing.balance) } })
                 setEditing(null); inval(); toast(`${a.name} updated`)
               }}>
+                <Button type="button" size="sm" variant="ghost" onClick={async () => {
+                  const next = a.visibility === 'shared' ? 'private' : 'shared'
+                  await api(`/accounts/${a.id}`, { method: 'PATCH', json: { visibility: next } })
+                  setEditing(null); inval()
+                  toast(next === 'shared' ? 'Now visible to the household' : 'Now private to you')
+                }}>
+                  {a.visibility === 'shared' ? 'Make private' : 'Share'}
+                </Button>
                 <InputGroup className="w-32">
                   <InputGroupAddon>Rs</InputGroupAddon>
                   <InputGroupInput type="number" autoFocus className="amount text-right" value={editing.balance}
@@ -216,15 +231,21 @@ function AccountsSection() {
             )}
           </div>
         ))}
-        <form className="flex gap-2" onSubmit={async (e) => {
+        <form className="flex flex-col gap-2" onSubmit={async (e) => {
           e.preventDefault()
-          await api('/accounts', { method: 'POST', json: { name: form.name, balance: Number(form.balance || 0) } })
-          setForm({ name: '', balance: '' }); inval(); toast('Account added')
+          await api('/accounts', {
+            method: 'POST',
+            json: { name: form.name, balance: Number(form.balance || 0), visibility: shared ? 'shared' : 'private' },
+          })
+          setForm({ name: '', balance: '' }); setShared(false); inval(); toast('Account added')
         }}>
-          <Input placeholder="Account name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <Input type="number" placeholder="Rs 0" className="amount w-24" value={form.balance}
-            onChange={(e) => setForm({ ...form, balance: e.target.value })} />
-          <Button type="submit" variant="outline" size="icon" aria-label="Add account"><Plus /></Button>
+          <div className="flex gap-2">
+            <Input placeholder="Account name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <Input type="number" placeholder="Rs 0" className="amount w-24" value={form.balance}
+              onChange={(e) => setForm({ ...form, balance: e.target.value })} />
+            <Button type="submit" variant="outline" size="icon" aria-label="Add account"><Plus /></Button>
+          </div>
+          <ShareSwitch checked={shared} onChange={setShared} />
         </form>
       </CardContent>
     </Card>
@@ -351,7 +372,7 @@ function ZakatSection() {
     <Card>
       <CardHeader>
         <CardTitle>Zakat</CardTitle>
-        <CardDescription>2.5% of zakatable wealth above nisab.</CardDescription>
+        <CardDescription>2.5% of zakatable wealth above nisab — computed from assets visible to you.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {z && (

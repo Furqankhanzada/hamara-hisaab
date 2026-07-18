@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { rupees } from '../api'
+import { Switch } from '@/components/ui/switch'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -35,6 +36,21 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
     <div className={cn('text-[11px] font-medium tracking-[0.12em] text-muted-foreground uppercase', className)}>
       {children}
     </div>
+  )
+}
+
+/** Wealth-item visibility toggle: private (default) vs shared with the household. */
+export function ShareSwitch({ checked, onChange, busy }: { checked: boolean; onChange: (shared: boolean) => void; busy?: boolean }) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+      <span className="text-sm">
+        Share with household
+        <span className="block text-xs text-muted-foreground">
+          {checked ? 'Visible to every member' : 'Only you can see this'}
+        </span>
+      </span>
+      <Switch checked={checked} disabled={busy} onCheckedChange={(v: boolean) => onChange(v)} />
+    </label>
   )
 }
 

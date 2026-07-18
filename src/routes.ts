@@ -101,7 +101,11 @@ api.get('/loans/:id', async (c) => {
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
 api.patch('/loans/:id', async (c) => {
-  const body = z.object({ status: z.enum(['open', 'settled']).optional(), note: z.string().optional() }).parse(await c.req.json())
+  const body = z.object({
+    status: z.enum(['open', 'settled']).optional(),
+    note: z.string().optional(),
+    visibility: z.enum(['shared', 'private']).optional(),
+  }).parse(await c.req.json())
   const row = await loans.updateLoan(hctx(c), c.req.param('id'), body)
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })

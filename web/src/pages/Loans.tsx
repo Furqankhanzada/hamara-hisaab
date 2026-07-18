@@ -16,11 +16,12 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import { Amount, Confirm, Eyebrow, PageHeader } from '@/components/shared'
+import { Amount, Confirm, Eyebrow, PageHeader, ShareSwitch } from '@/components/shared'
 
 export type Loan = {
   id: string; counterparty: string; direction: 'lent' | 'borrowed'; principal: string
   start_date: string; note: string | null; status: 'open' | 'settled'; paid: number; outstanding: number
+  visibility: 'shared' | 'private'
 }
 type LoanDetail = Loan & { payments: { id: string; amount: string; paidOn: string; note: string | null }[] }
 
@@ -77,6 +78,7 @@ export default function Loans() {
                     <Badge variant={l.direction === 'borrowed' ? 'destructive' : 'secondary'}>
                       {l.direction === 'lent' ? 'owes us' : 'we owe'}
                     </Badge>
+                    {l.visibility === 'shared' && <Badge variant="outline">shared</Badge>}
                   </div>
                   <div className="truncate text-xs text-muted-foreground">
                     since {fmtDate(l.start_date)}
@@ -95,7 +97,7 @@ export default function Loans() {
       <Drawer open={adding} onOpenChange={setAdding}>
         <DrawerContent>
           <DrawerHeader><DrawerTitle>New loan</DrawerTitle></DrawerHeader>
-          <div className="px-4 pb-6"><AddLoan onDone={() => setAdding(false)} /></div>
+          <div className="mx-auto w-full max-w-lg px-4 pb-6"><AddLoan onDone={() => setAdding(false)} /></div>
         </DrawerContent>
       </Drawer>
 
@@ -116,13 +118,17 @@ const DIRECTIONS = [
 function AddLoan({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient()
   const [form, setForm] = useState({ direction: 'lent', counterparty: '', principal: '', note: '' })
+  const [shared, setShared] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     try {
       await api('/loans', {
         method: 'POST',
-        json: { direction: form.direction, counterparty: form.counterparty, principal: Number(form.principal), note: form.note || undefined },
+        json: {
+          direction: form.direction, counterparty: form.counterparty, principal: Number(form.principal),
+          note: form.note || undefined, visibility: shared ? 'shared' : 'private',
+        },
       })
       qc.invalidateQueries({ queryKey: ['loans'] })
       qc.invalidateQueries({ queryKey: ['zakat'] })
@@ -167,6 +173,7 @@ function AddLoan({ onDone }: { onDone: () => void }) {
           <Input id="l-note" placeholder="Optional — what was it for?" value={form.note}
             onChange={(e) => setForm({ ...form, note: e.target.value })} />
         </Field>
+        <ShareSwitch checked={shared} onChange={setShared} />
         <Button type="submit" className="w-full">Add loan</Button>
       </FieldGroup>
     </form>
@@ -208,7 +215,7 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
       <DrawerHeader>
         <DrawerTitle>{l.counterparty} · {lent ? 'owes us' : 'we owe'}</DrawerTitle>
       </DrawerHeader>
-      <div className="flex flex-col gap-4 px-4 pb-6">
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 pb-6">
         <div>
           <Eyebrow className="mb-1">Statement</Eyebrow>
           <div className="flex items-baseline justify-between py-1.5 text-sm">
@@ -233,6 +240,12 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
             <Amount value={l.outstanding} className={cn('text-sm', l.status === 'open' && !lent && 'text-outflow')} />
           </div>
         </div>
+
+        <ShareSwitch checked={l.visibility === 'shared'} onChange={async (v) => {
+          await api(`/loans/${id}`, { method: 'PATCH', json: { visibility: v ? 'shared' : 'private' } })
+          refresh()
+          toast(v ? 'Now visible to the household' : 'Now private to you')
+        }} />
 
         {l.status === 'open' ? (
           <>
