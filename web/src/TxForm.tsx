@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { api } from './api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -118,7 +119,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
 
         <Field>
           <FieldLabel htmlFor="tx-note">Note</FieldLabel>
-          <Input id="tx-note" placeholder="What was it for?" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Textarea id="tx-note" rows={2} placeholder="What was it for?" value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
 
         <div className="flex gap-2">
