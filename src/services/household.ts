@@ -6,9 +6,10 @@ import type { Ctx } from '../middleware'
 
 const DEFAULT_CATEGORIES: [string, 'expense' | 'income'][] = [
   ['Groceries', 'expense'], ['Food & Dining', 'expense'], ['Transport', 'expense'],
-  ['Fuel', 'expense'], ['Utilities', 'expense'], ['Rent', 'expense'],
-  ['Health', 'expense'], ['Education', 'expense'], ['Shopping', 'expense'],
-  ['Charity', 'expense'], ['Personal', 'expense'], ['Other', 'expense'],
+  ['Fuel', 'expense'], ['Utilities', 'expense'], ['Phone/Internet', 'expense'],
+  ['Rent', 'expense'], ['Bills/Taxes', 'expense'], ['Health', 'expense'],
+  ['Education', 'expense'], ['Shopping', 'expense'], ['Charity', 'expense'],
+  ['Personal', 'expense'], ['Other', 'expense'],
   ['Salary', 'income'], ['Business', 'income'], ['Investment', 'income'], ['Other', 'income'],
 ]
 
