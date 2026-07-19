@@ -22,6 +22,27 @@ test('onboarding → add expense via drawer → visible in ledger and dashboard'
   await expect(page.getByText('Groceries').first()).toBeVisible() // spending by category
 })
 
+test('currency select keeps focus and foreign entries land converted', async ({ page }) => {
+  await onboard(page)
+  await page.getByRole('button', { name: 'Add entry' }).click()
+
+  // regression: InputGroup used to steal focus from the addon select, closing it instantly
+  const currency = page.getByLabel('Currency')
+  await currency.click()
+  await expect(currency).toBeFocused()
+
+  await currency.selectOption('USD')
+  await type(page.getByLabel('Amount'), '5')
+  await type(page.getByPlaceholder('auto'), '280') // manual rate: no network in tests
+  await type(page.getByLabel('Note'), 'foreign entry')
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await expect(page.getByText('Expense added')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Ledger' }).click()
+  await expect(page.getByText('Rs 1,400').first()).toBeVisible() // 5 × 280
+  await expect(page.getByText('$5.00 @ 280.00')).toBeVisible()
+})
+
 test('edit an entry from the ledger', async ({ page }) => {
   await onboard(page)
 

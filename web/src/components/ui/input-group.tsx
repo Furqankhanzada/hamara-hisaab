@@ -53,7 +53,8 @@ function InputGroupAddon({
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button")) {
+        // interactive addon children keep their own focus (a select would close instantly otherwise)
+        if ((e.target as HTMLElement).closest("button, select, a")) {
           return
         }
         e.currentTarget.parentElement?.querySelector("input")?.focus()
