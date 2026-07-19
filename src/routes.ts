@@ -14,6 +14,7 @@ import * as recurring from './services/recurring'
 import * as accounts from './services/accounts'
 import * as zakat from './services/zakat'
 import * as fx from './services/fx'
+import * as brief from './services/brief'
 
 // ponytail: single routes file — every handler is parse → service → json
 export const api = new Hono<AuthEnv>()
@@ -69,6 +70,7 @@ api.put('/budgets/:categoryId', async (c) => {
 })
 
 api.get('/reports/monthly', async (c) => c.json(await reports.monthlyReport(hctx(c), c.req.query('month'))))
+api.get('/reports/brief', async (c) => c.json(await brief.dailyBrief(hctx(c))))
 api.get('/reports/overview', async (c) => {
   const q = z.object({
     period: z.enum(['week', 'month', 'quarter', 'year']).default('month'),

@@ -4,7 +4,7 @@ import { monthBounds, todayPk } from '../util'
 import { budgetStatus } from './budgets'
 import type { Ctx } from '../middleware'
 
-async function totalsFor(householdId: string, from: string, toExclusive: string) {
+export async function totalsFor(householdId: string, from: string, toExclusive: string) {
   const totals = await db.execute(sql`
     select type, sum(amount)::float8 as total from transactions
     where household_id = ${householdId} and occurred_on >= ${from} and occurred_on < ${toExclusive}

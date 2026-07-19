@@ -12,6 +12,7 @@ import * as recurring from './services/recurring'
 import * as accounts from './services/accounts'
 import * as zakat from './services/zakat'
 import * as fx from './services/fx'
+import * as brief from './services/brief'
 
 const json = (data: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(data, null, 1) }] })
 
@@ -40,6 +41,8 @@ function buildServer(ctx: Ctx) {
     { category_id: z.string(), ...budgets.budgetInput.shape },
     (a: { category_id: string; monthly_amount: number }) => budgets.setBudget(ctx, a.category_id, a.monthly_amount))
 
+  tool('get_daily_brief', "Composed morning brief in one call: yesterday's spending, month so far, budget pace warnings, bills due in the next 7 days, open loans, and a zakat-date reminder. The `text` field is ready to post to a family chat as-is.",
+    {}, () => brief.dailyBrief(ctx))
   tool('get_monthly_report', 'Monthly summary: income, expense, net, category breakdown, per-member split, budget compare.',
     { month: z.string().optional().describe('YYYY-MM') }, (a: { month?: string }) => reports.monthlyReport(ctx, a.month))
   tool('get_report', 'Weekly/monthly/quarterly/yearly or custom-range report: totals, previous-period comparison, income/expense trend buckets, category and member breakdowns.',
