@@ -30,11 +30,15 @@ async function breakdownFor(householdId: string, from: string, toExclusive: stri
 
 export async function monthlyReport(ctx: Ctx, month?: string) {
   const { month: m, from, toExclusive } = monthBounds(month)
+  const status = await budgetStatus(ctx, m)
   return {
     month: m,
     ...(await totalsFor(ctx.householdId, from, toExclusive)),
     ...(await breakdownFor(ctx.householdId, from, toExclusive)),
-    budgets: (await budgetStatus(ctx, m)).budgets,
+    budgets: status.budgets,
+    budget_totals: status.totals,
+    unbudgeted_spent: status.unbudgeted_spent,
+    month_elapsed_pct: status.month_elapsed_pct,
   }
 }
 

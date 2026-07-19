@@ -21,6 +21,16 @@ describe('reports + budgets', () => {
     const b = r.budgets.find((x: { category: string }) => x.category === 'Groceries')
     expect(b.spent).toBe(2500)
     expect(b.remaining).toBe(37500)
+
+    // budget overview: totals, spending outside any cap, month pace
+    expect(r.budget_totals).toEqual({ budget: 40000, spent: 2500, remaining: 37500 })
+    expect(r.unbudgeted_spent).toBe(1500) // the Fuel expense has no cap
+    expect(r.month_elapsed_pct).toBeGreaterThan(0)
+    expect(r.month_elapsed_pct).toBeLessThanOrEqual(100)
+
+    const status = await json(`/api/v1/budgets/status?month=${m}`, { key: u.key })
+    expect(status.totals.budget).toBe(40000)
+    expect(status.unbudgeted_spent).toBe(1500)
   })
 
   it('overview periods bucket correctly, with previous-period comparison', async () => {

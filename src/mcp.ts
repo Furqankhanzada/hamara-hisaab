@@ -34,7 +34,7 @@ function buildServer(ctx: Ctx) {
   tool('list_categories', 'List expense and income categories of the household.', {}, () => tx.listCategories(ctx))
   tool('add_category', 'Add a new category.', tx.categoryInput.shape, (a) => tx.addCategory(ctx, a))
 
-  tool('get_budget_status', 'Per-category spent vs monthly budget cap for a month (default: current month).',
+  tool('get_budget_status', 'Budget picture for a month (default current): per-category spent vs cap, overall totals, spending outside any budget (unbudgeted_spent), and month_elapsed_pct for pace judgement.',
     { month: z.string().optional().describe('YYYY-MM') }, (a: { month?: string }) => budgets.budgetStatus(ctx, a.month))
   tool('set_budget', 'Set (or remove with 0) the monthly budget cap for a category.',
     { category_id: z.string(), ...budgets.budgetInput.shape },

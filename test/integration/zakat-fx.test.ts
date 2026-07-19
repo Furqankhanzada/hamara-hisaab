@@ -45,6 +45,29 @@ describe('zakat + foreign-currency accounts', () => {
     expect(acct.base_balance).toBe(32500)
   })
 
+  it('partial account updates never reset other fields (zod default regression)', async () => {
+    const u = await makeUser()
+    await json('/api/v1/fx/rates', { key: u.key, json: { currency: 'AED', rate: 76 } })
+    const acct = await json('/api/v1/accounts', {
+      key: u.key, json: { name: 'Dubai', balance: 1000, currency: 'AED', visibility: 'shared', zakatable: false },
+    })
+
+    // visibility-only PATCH used to zero the balance and reset currency/zakatable
+    await json(`/api/v1/accounts/${acct.id}`, { method: 'PATCH', key: u.key, json: { visibility: 'private' } })
+    let [row] = (await json('/api/v1/accounts', { key: u.key })).filter((a: { id: string }) => a.id === acct.id)
+    expect(row.balance).toBe(1000)
+    expect(row.currency).toBe('AED')
+    expect(row.zakatable).toBe(false)
+    expect(row.visibility).toBe('private')
+
+    // balance-only PATCH used to flip visibility back to private / currency to PKR
+    await json(`/api/v1/accounts/${acct.id}`, { method: 'PATCH', key: u.key, json: { balance: 2000 } })
+    ;[row] = (await json('/api/v1/accounts', { key: u.key })).filter((a: { id: string }) => a.id === acct.id)
+    expect(row.balance).toBe(2000)
+    expect(row.currency).toBe('AED')
+    expect(row.visibility).toBe('private')
+  })
+
   it('below nisab means no zakat due', async () => {
     const u = await makeUser()
     await json('/api/v1/accounts', { key: u.key, json: { name: 'Cash', balance: 1000 } })

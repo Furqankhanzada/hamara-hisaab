@@ -8,7 +8,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Amount, PageHeader } from '@/components/shared'
 import { useCategories } from '../TxForm'
 
-type Status = { month: string; budgets: { category_id: string; category: string; budget: number; spent: number }[] }
+type Status = {
+  month: string
+  budgets: { category_id: string; category: string; budget: number; spent: number }[]
+  totals: { budget: number; spent: number; remaining: number }
+  unbudgeted_spent: number
+}
 
 export default function Budgets() {
   const qc = useQueryClient()
@@ -73,6 +78,16 @@ export default function Budgets() {
               </form>
             )
           })}
+          {status.data && status.data.totals.budget > 0 && (
+            <div className="mt-1 flex items-center justify-between border-t pt-3">
+              <span className="text-sm font-semibold">Total budgeted</span>
+              <span className="text-sm">
+                <Amount value={status.data.totals.spent} className="text-sm" />
+                <span className="text-muted-foreground"> / </span>
+                <Amount value={status.data.totals.budget} className="text-sm" />
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

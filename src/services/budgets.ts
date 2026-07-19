@@ -2,7 +2,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db/client'
 import { budgets, categories } from '../db/schema'
-import { monthBounds } from '../util'
+import { monthBounds, todayPk } from '../util'
 import type { Ctx } from '../middleware'
 
 export const budgetInput = z.object({
@@ -32,7 +32,7 @@ export async function listBudgets(ctx: Ctx) {
 
 export async function budgetStatus(ctx: Ctx, month?: string) {
   const { month: m, from, toExclusive } = monthBounds(month)
-  const { rows } = await db.execute(sql`
+  const { rows } = await db.execute<{ budget: number; spent: number }>(sql`
     select c.id as category_id, c.name as category,
            b.monthly_amount::float8 as budget,
            coalesce(s.spent, 0)::float8 as spent,
@@ -48,5 +48,28 @@ export async function budgetStatus(ctx: Ctx, month?: string) {
     ) s on s.category_id = b.category_id
     where b.household_id = ${ctx.householdId}
     order by c.name`)
-  return { month: m, budgets: rows }
+
+  const totalExpense = await db.execute<{ total: number }>(sql`
+    select coalesce(sum(amount), 0)::float8 as total from transactions
+    where household_id = ${ctx.householdId} and type = 'expense'
+      and occurred_on >= ${from} and occurred_on < ${toExclusive}`)
+
+  const budget = rows.reduce((s, r) => s + r.budget, 0)
+  const spent = rows.reduce((s, r) => s + r.spent, 0)
+
+  // pace: how far through this month are we (only meaningful for the current month)
+  const today = todayPk()
+  let monthElapsedPct: number | null = null
+  if (today.slice(0, 7) === m) {
+    const [y, mo, d] = today.split('-').map(Number)
+    monthElapsedPct = Math.round((d / new Date(y, mo, 0).getDate()) * 100)
+  }
+
+  return {
+    month: m,
+    budgets: rows,
+    totals: { budget, spent, remaining: budget - spent },
+    unbudgeted_spent: Math.round((Number(totalExpense.rows[0].total) - spent) * 100) / 100,
+    month_elapsed_pct: monthElapsedPct,
+  }
 }

@@ -5,9 +5,13 @@ import { expect, type Locator, type Page } from '@playwright/test'
  * synthetically and React (19 + Base UI wrappers) misses it on some inputs — typing never does.
  */
 export async function type(input: Locator, text: string) {
-  await input.click()
-  await input.press('ControlOrMeta+a')
-  await input.pressSequentially(text)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await input.click()
+    await input.press('ControlOrMeta+a')
+    await input.pressSequentially(text)
+    if ((await input.inputValue()) === text) return // guard against focus lost mid-typing
+  }
+  throw new Error(`typing "${text}" did not stick`)
 }
 
 /** Register a fresh user and create their household; lands on the dashboard. */

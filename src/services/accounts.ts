@@ -17,7 +17,15 @@ export const accountInput = z.object({
   visibility: visibilityInput,
 })
 
-export const accountUpdate = accountInput.partial()
+// NOT accountInput.partial(): zod applies .default() values inside partial(), so a
+// visibility-only PATCH would silently reset balance to 0, currency to PKR, etc.
+export const accountUpdate = z.object({
+  name: z.string().min(1).optional(),
+  balance: z.coerce.number().min(0).optional(),
+  currency: currencyCode.optional(),
+  zakatable: z.boolean().optional(),
+  visibility: z.enum(['shared', 'private']).optional(),
+})
 
 /** shared items, your own items, and legacy unowned rows */
 const visibleTo = (userId: string) =>

@@ -18,6 +18,9 @@ type Report = {
   by_category: { type: string; category: string; total: number }[]
   by_member: { member: string; type: string; total: number }[]
   budgets: { category_id: string; category: string; budget: number; spent: number; remaining: number }[]
+  budget_totals: { budget: number; spent: number; remaining: number }
+  unbudgeted_spent: number
+  month_elapsed_pct: number | null
 }
 
 function shiftMonth(m: string, delta: number) {
@@ -90,6 +93,39 @@ export default function Dashboard() {
         <CardContent className="flex flex-col gap-3">
           {r && r.budgets.length === 0 && (
             <p className="text-sm text-muted-foreground">No caps set yet — add monthly limits per category.</p>
+          )}
+          {r && r.budgets.length > 0 && (
+            <div className="flex flex-col gap-1.5 border-b pb-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-semibold">Total</span>
+                <span className="text-sm">
+                  <Amount value={r.budget_totals.spent} className={cn('text-sm', r.budget_totals.remaining < 0 && 'text-outflow')} />
+                  <span className="text-muted-foreground"> / </span>
+                  <Amount value={r.budget_totals.budget} className="text-sm" />
+                </span>
+              </div>
+              <div className="relative">
+                <Progress value={Math.min(100, Math.round((r.budget_totals.spent / r.budget_totals.budget) * 100))} className="h-2" />
+                {r.month_elapsed_pct != null && (
+                  // pace marker: where in the month we are — spend left of the tick is on track
+                  <div className="absolute top-[-2px] h-3 w-0.5 rounded bg-foreground/40" style={{ left: `${r.month_elapsed_pct}%` }} />
+                )}
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>
+                  {r.budget_totals.remaining >= 0
+                    ? <><Amount value={r.budget_totals.remaining} className="text-xs" /> left</>
+                    : <>over by <Amount value={-r.budget_totals.remaining} className="text-xs text-outflow" /></>}
+                </span>
+                {r.month_elapsed_pct != null && <span>{r.month_elapsed_pct}% of month gone</span>}
+              </div>
+              {r.unbudgeted_spent > 0 && (
+                <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                  <span>Outside any budget</span>
+                  <Amount value={r.unbudgeted_spent} className="text-xs" />
+                </div>
+              )}
+            </div>
           )}
           {r?.budgets.map((b) => {
             const pct = Math.min(100, Math.round((b.spent / b.budget) * 100))
