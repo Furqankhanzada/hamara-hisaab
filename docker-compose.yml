@@ -29,5 +29,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Public HTTPS via Cloudflare Tunnel — opt-in: docker compose --profile public up -d
+  # (create the tunnel in Cloudflare Zero Trust, point its hostname at http://app:3000,
+  #  put the connector token in .env as TUNNEL_TOKEN — see README "Going public")
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+    restart: unless-stopped
+    profiles: [public]
+
 volumes:
   pgdata:

@@ -69,6 +69,24 @@ A daily job (18:30 & 22:00 PKT) fetches:
 
 Recurring bills materialize into the ledger on their due day (00:15 PKT, with catch-up after downtime).
 
+## Going public with Cloudflare Tunnel
+
+To reach the app (and its `/mcp` endpoint) from anywhere — phones, WhatsApp agents — without opening ports:
+
+1. Add your domain to Cloudflare (free plan is fine).
+2. [Zero Trust dashboard](https://one.dash.cloudflare.com) → **Networks → Tunnels → Create a tunnel** → *Cloudflared* connector → name it (e.g. `khaata`).
+3. On the connector page pick **Docker**, copy the token from the shown command, and put it in `.env` as `TUNNEL_TOKEN=...`.
+4. Add a **Public hostname**: `khaata.yourdomain.com` → service **HTTP** → `app:3000`.
+5. Update `.env`:
+   ```
+   APP_URL=https://khaata.yourdomain.com
+   TRUSTED_ORIGINS=http://localhost:3000     # keep local login working (match your APP_PORT)
+   ```
+6. `docker compose --profile public up -d --build`
+7. Register your household members at the public URL, then set `DISABLE_SIGNUPS=true` in `.env` and restart — no strangers can create accounts on your instance.
+
+Agents then connect to `https://khaata.yourdomain.com/mcp` (header `x-api-key`) from anywhere.
+
 ## Development
 
 ```bash

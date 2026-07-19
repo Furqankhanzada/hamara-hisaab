@@ -20,7 +20,7 @@ export default defineConfig({
         display: 'standalone',
         icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
       },
-      workbox: { navigateFallbackDenylist: [/^\/api/, /^\/mcp/] },
+      workbox: { navigateFallbackDenylist: [/^\/api/, /^\/mcp/], skipWaiting: true, clientsClaim: true },
     }),
   ],
   build: { outDir: '../dist/public', emptyOutDir: true },
