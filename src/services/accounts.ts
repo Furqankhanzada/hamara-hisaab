@@ -42,7 +42,8 @@ export async function listAccounts(ctx: Ctx) {
 }
 
 export async function addAccount(ctx: Ctx, input: z.infer<typeof accountInput>) {
-  if (input.currency !== BASE) await latestRate(input.currency) // ensure a rate exists up front
+  // best-effort rate prefetch — saving must not depend on the FX API being up
+  if (input.currency !== BASE) await latestRate(input.currency).catch(() => {})
   const [row] = await db.insert(accounts).values({
     householdId: ctx.householdId,
     userId: ctx.userId,
@@ -56,7 +57,7 @@ export async function addAccount(ctx: Ctx, input: z.infer<typeof accountInput>) 
 }
 
 export async function updateAccount(ctx: Ctx, id: string, input: z.infer<typeof accountUpdate>) {
-  if (input.currency && input.currency !== BASE) await latestRate(input.currency)
+  if (input.currency && input.currency !== BASE) await latestRate(input.currency).catch(() => {})
   const [row] = await db.update(accounts).set({
     name: input.name,
     balance: input.balance !== undefined ? input.balance.toFixed(2) : undefined,
