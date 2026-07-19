@@ -1,0 +1,25 @@
+# Hamara Hisaab — working rules
+
+## Tests accompany every change (standing policy)
+
+- **Every behavior change lands with tests in the same commit.** Backend/API changes extend or adjust `test/integration/*.test.ts` (API-level, real Postgres, in-process app); UI-flow changes extend or adjust `e2e/*.spec.ts` (Playwright). Changed behavior means changed assertions — never delete a failing test to make a change pass without understanding why.
+- Run `npm test` before every commit; also `npm run test:e2e` when the web UI changed.
+- Parser/fetcher logic (PSX, MUFAP, FX) is tested with stubbed `fetch` fixtures in `test/unit/` — tests never hit the network.
+
+## Architecture rules
+
+- **Services-first**: business logic lives in `src/services/*`; `src/routes.ts` (REST) and `src/mcp.ts` (MCP tools) are thin wrappers over the same services. Every user-facing capability gets an MCP tool — agents are first-class clients.
+- **Wealth privacy**: any query touching holdings/accounts/loans must include the visibility rule (`visibility = 'shared' OR user_id = ctx.userId`); invisible rows 404 on writes.
+- **Money**: all aggregation is PKR. Foreign transactions convert once at entry (locked rate, original preserved); accounts/stocks convert at the latest `fx_rates` rate on read.
+- Schema changes: edit `src/db/schema.ts`, then `npm run db:generate`; hand-append backfills to the generated SQL when needed. Migrations run at app boot.
+
+## Commands
+
+- Dev: `docker compose up -d db` then `PORT=3001 npx tsx src/index.ts` (host port 3000 is usually taken by another project).
+- Checks: `npm run typecheck` · `npm test` · `npm run test:e2e` · `npm run build`
+- Deploy: `docker compose up -d --build app` — then **verify the served bundle hash changed** (`curl -s localhost:3002/ | grep -oE 'assets/index-[^"]+\.js'`); a stale image once passed the health check silently.
+
+## Test infrastructure
+
+- Integration: vitest; `test/helpers.ts` provides `getApp/req/json/makeUser/mcp`. The test DB `finance_test` is auto-created/migrated off `DATABASE_URL` (defaults to the dev container on :5433). Suites isolate through fresh users/households per test — no truncation needed.
+- E2E: `playwright.config.ts` boots the real server on :3010 against a fresh `finance_e2e` (`e2e/reset-db.mjs`). Use the `type()` helper from `e2e/util.ts` for inputs — Playwright's `fill()` doesn't reach React state on some controlled inputs.

@@ -132,7 +132,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
               value={categoryId}
               onValueChange={(v) => setCategoryId(v as string | null)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="Category">
                 <SelectValue placeholder="Choose…" />
               </SelectTrigger>
               <SelectContent>

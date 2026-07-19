@@ -97,6 +97,8 @@ npm run dev                      # API + SPA-serving on :3000 (PORT=3001 to chan
 npm run dev:web                  # optional: Vite dev server with HMR, proxies /api → :3001
 npm run db:generate              # regenerate SQL migration after editing src/db/schema.ts
 npm run typecheck && npm run build
+npm test                         # integration + unit tests (vitest, real Postgres, no network)
+npm run test:e2e                 # Playwright browser tests against a fresh e2e database
 ```
 
 Auth tables (`src/db/auth-schema.ts`) are generated:
