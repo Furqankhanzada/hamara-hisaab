@@ -60,9 +60,15 @@ function buildServer(ctx: Ctx) {
     { search: z.string().optional() }, (a: { search?: string }) => portfolio.searchInstruments(a.search))
   tool('add_holding', 'Add an investment holding; pass instrument_id, or instrument {kind, symbol|mufap_fund_name, name} to create one.',
     portfolio.holdingInput.shape, (a) => portfolio.addHolding(ctx, portfolio.holdingInput.parse(a)))
-  tool('update_holding', 'Adjust units (0 deletes), avg cost or zakatable flag of a holding after a buy/sell.',
+  tool('update_holding', 'Adjust units, avg cost, visibility or zakatable flag of a holding after a buy/sell.',
     { holding_id: z.string(), ...portfolio.holdingUpdate.shape },
     async (a: { holding_id: string }) => (await portfolio.updateHolding(ctx, a.holding_id, portfolio.holdingUpdate.parse(a))) ?? { error: 'not found' })
+  tool('delete_holding', 'Remove an investment holding from the portfolio (its price history is kept).',
+    { holding_id: z.string() },
+    async (a: { holding_id: string }) => (await portfolio.updateHolding(ctx, a.holding_id, { units: 0 })) ?? { error: 'not found' })
+  tool('update_instrument', "Rename an investment's display name, e.g. 'Gold jewellery (5 tola)'. Only instruments your household holds can be renamed; the name is shared across the household.",
+    { instrument_id: z.string(), ...portfolio.instrumentUpdate.shape },
+    async (a: { instrument_id: string }) => (await portfolio.updateInstrument(ctx, a.instrument_id, portfolio.instrumentUpdate.parse(a))) ?? { error: 'not found' })
   tool('record_price', 'Manually record a price/NAV/valuation for an instrument (wins over auto-fetched prices).',
     portfolio.priceInput.shape, (a) => portfolio.recordPrice(portfolio.priceInput.parse(a)))
   tool('refresh_prices', 'Fetch latest market data now: PSX closing prices, MUFAP fund NAVs, and exchange rates.', {}, () => portfolio.refreshPrices())

@@ -19,8 +19,16 @@ test('add a manual asset, price it, share it, remove it', async ({ page }) => {
   await expect(page.getByText('Holding added')).toBeVisible()
   await expect(page.getByText('Gold set')).toBeVisible()
 
-  // manage drawer: set a price → value + gain appear
+  // manage drawer: rename the display name
   await page.getByText('Gold set').click()
+  await type(page.getByLabel('Display name'), 'Gold jewellery')
+  await page.getByRole('button', { name: 'Rename' }).click()
+  await expect(page.getByText('Name updated')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('Gold jewellery')).toBeVisible()
+
+  // manage drawer: set a price → value + gain appear
+  await page.getByText('Gold jewellery').click()
   await type(page.getByPlaceholder('per unit'), '120000')
   await page.getByRole('button', { name: 'Set', exact: true }).click()
   await expect(page.getByText('Price recorded')).toBeVisible()
@@ -28,7 +36,7 @@ test('add a manual asset, price it, share it, remove it', async ({ page }) => {
   await expect(page.getByText('+Rs 20,000').first()).toBeVisible()
 
   // share switch: real state change
-  await page.getByText('Gold set').click()
+  await page.getByText('Gold jewellery').click()
   const share = page.getByRole('switch')
   await expect(share).not.toBeChecked()
   await share.click()
@@ -37,10 +45,10 @@ test('add a manual asset, price it, share it, remove it', async ({ page }) => {
   await expect(page.getByText('shared', { exact: true })).toBeVisible()
 
   // remove via confirm dialog
-  await page.getByText('Gold set').click()
+  await page.getByText('Gold jewellery').click()
   await page.getByRole('button', { name: 'Remove holding' }).click()
   const dialog = page.getByRole('alertdialog')
-  await expect(dialog.getByText('Remove Gold set?')).toBeVisible()
+  await expect(dialog.getByText('Remove Gold jewellery?')).toBeVisible()
   await dialog.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(page.getByText('Holding removed')).toBeVisible()
   await expect(page.getByText('No holdings yet')).toBeVisible()

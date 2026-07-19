@@ -65,6 +65,17 @@ export async function createInstrument(input: z.infer<typeof instrumentInput>) {
   return row
 }
 
+export const instrumentUpdate = z.object({ name: z.string().min(1).describe('New display name') })
+
+/** Rename an instrument's display name — only if the caller holds it (respecting privacy). */
+export async function updateInstrument(ctx: Ctx, id: string, input: z.infer<typeof instrumentUpdate>) {
+  const [held] = await db.select({ id: holdings.id }).from(holdings)
+    .where(and(eq(holdings.instrumentId, id), eq(holdings.householdId, ctx.householdId), holdingVisibleTo(ctx.userId))).limit(1)
+  if (!held) return null
+  const [row] = await db.update(instruments).set({ name: input.name }).where(eq(instruments.id, id)).returning()
+  return row ?? null
+}
+
 export async function addHolding(ctx: Ctx, input: z.infer<typeof holdingInput>) {
   let instrumentId = input.instrument_id
   if (!instrumentId) {

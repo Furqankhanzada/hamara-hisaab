@@ -85,6 +85,10 @@ api.get('/reports/overview', async (c) => {
 api.get('/portfolio', async (c) => c.json(await portfolio.getPortfolio(hctx(c))))
 api.get('/instruments', async (c) => c.json(await portfolio.searchInstruments(c.req.query('search'))))
 api.post('/instruments', async (c) => c.json(await portfolio.createInstrument(portfolio.instrumentInput.parse(await c.req.json())), 201))
+api.patch('/instruments/:id', async (c) => {
+  const row = await portfolio.updateInstrument(hctx(c), c.req.param('id'), portfolio.instrumentUpdate.parse(await c.req.json()))
+  return row ? c.json(row) : c.json({ error: 'not found' }, 404)
+})
 api.post('/holdings', async (c) => c.json(await portfolio.addHolding(hctx(c), portfolio.holdingInput.parse(await c.req.json())), 201))
 api.patch('/holdings/:id', async (c) => {
   const row = await portfolio.updateHolding(hctx(c), c.req.param('id'), portfolio.holdingUpdate.parse(await c.req.json()))

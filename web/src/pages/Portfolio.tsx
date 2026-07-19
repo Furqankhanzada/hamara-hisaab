@@ -138,13 +138,29 @@ export default function PortfolioPage() {
 
 function ManageHolding({ h, onDone }: { h: Holding; onDone: () => void }) {
   const qc = useQueryClient()
+  const [name, setName] = useState(h.name)
   const [units, setUnits] = useState(String(h.units))
   const [price, setPrice] = useState('')
   const [shared, setShared] = useState(h.visibility === 'shared')
-  const done = (msg: string) => { qc.invalidateQueries({ queryKey: ['portfolio'] }); toast(msg); onDone() }
+  const refresh = () => qc.invalidateQueries({ queryKey: ['portfolio'] })
+  const done = (msg: string) => { refresh(); toast(msg); onDone() }
 
   return (
     <FieldGroup>
+      <form onSubmit={async (e) => {
+        e.preventDefault()
+        await api(`/instruments/${h.instrument_id}`, { method: 'PATCH', json: { name } })
+        refresh(); toast('Name updated')
+      }}>
+        <Field>
+          <FieldLabel htmlFor="hname">Display name</FieldLabel>
+          <div className="flex gap-2">
+            <Input id="hname" required className="flex-1" value={name} onChange={(e) => setName(e.target.value)} />
+            <Button type="submit" variant="outline">Rename</Button>
+          </div>
+        </Field>
+      </form>
+
       <form onSubmit={async (e) => {
         e.preventDefault()
         await api(`/holdings/${h.holding_id}`, { method: 'PATCH', json: { units: Number(units) } })

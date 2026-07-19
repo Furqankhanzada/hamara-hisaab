@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inviteCodeOf, json, makeUser, req } from '../helpers'
+import { inviteCodeOf, json, makeUser, mcp, req } from '../helpers'
 
 describe('wealth privacy inside a household', () => {
   it('private wealth items are invisible and untouchable for the other member; shared ones visible', async () => {
@@ -33,6 +33,29 @@ describe('wealth privacy inside a household', () => {
 
     await json(`/api/v1/holdings/${holding.id}`, { method: 'PATCH', key: a.key, json: { visibility: 'shared' } })
     expect((await json('/api/v1/portfolio', { key: b.key })).holdings).toHaveLength(1)
+  })
+
+  it('rename and delete a holding; rename guarded to holders', async () => {
+    const a = await makeUser({ name: 'A' })
+    const b = await makeUser({ inviteCode: await inviteCodeOf(a), name: 'B' })
+
+    const holding = await json('/api/v1/holdings', {
+      key: a.key, json: { instrument: { kind: 'other', name: 'Old name' }, units: 1, avg_cost: 1000 },
+    })
+    // rename the instrument
+    const renamed = await json(`/api/v1/instruments/${holding.instrumentId}`, {
+      method: 'PATCH', key: a.key, json: { name: 'Gold jewellery (5 tola)' },
+    })
+    expect(renamed.name).toBe('Gold jewellery (5 tola)')
+    expect((await json('/api/v1/portfolio', { key: a.key })).holdings[0].name).toBe('Gold jewellery (5 tola)')
+
+    // B doesn't hold it (A's holding is private) → cannot rename
+    expect((await req(`/api/v1/instruments/${holding.instrumentId}`, { method: 'PATCH', key: b.key, json: { name: 'hijack' } })).status).toBe(404)
+
+    // delete via MCP delete_holding tool (agents pass the holding_id from get_portfolio; raw create returns .id)
+    const del = await mcp(a.key, 'tools/call', { name: 'delete_holding', arguments: { holding_id: holding.id } })
+    expect(JSON.parse(del.body.result.content[0].text).deleted).toBe(true)
+    expect((await json('/api/v1/portfolio', { key: a.key })).holdings).toHaveLength(0)
   })
 
   it('the daily ledger stays fully shared', async () => {
