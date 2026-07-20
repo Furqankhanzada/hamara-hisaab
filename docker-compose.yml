@@ -30,6 +30,8 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      options: { max-size: "10m", max-file: "5" }
 
   # Public HTTPS via Cloudflare Tunnel — opt-in: docker compose --profile public up -d
   # (create the tunnel in Cloudflare Zero Trust, point its hostname at http://app:3000,

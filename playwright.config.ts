@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+try { process.loadEnvFile() } catch { /* no .env — fine */ }
+
 const adminUrl = process.env.DATABASE_URL ?? 'postgres://finance:finance@localhost:5433/finance'
 const e2eDbUrl = adminUrl.replace(/\/[^/]+$/, '/finance_e2e')
 

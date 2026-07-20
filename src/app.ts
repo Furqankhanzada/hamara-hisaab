@@ -1,5 +1,6 @@
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
+import { logger } from 'hono/logger'
 import { ZodError } from 'zod'
 import { auth } from './auth'
 import { api } from './routes'
@@ -8,6 +9,9 @@ import { mcpApp } from './mcp'
 /** The full HTTP app, side-effect free (no migrate/listen/cron) — tests exercise it in-process. */
 export function buildApp() {
   const app = new Hono()
+
+  app.use('/api/*', logger())
+  app.use('/mcp', logger())
 
   app.onError((err, c) => {
     if (err instanceof ZodError) return c.json({ error: 'validation', issues: err.issues }, 400)

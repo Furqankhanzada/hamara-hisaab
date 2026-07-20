@@ -1,3 +1,4 @@
+import '../src/env'
 import crypto from 'node:crypto'
 import type { Hono } from 'hono'
 
@@ -7,6 +8,7 @@ export const TEST_DB_URL = devUrl.replace(/\/[^/]+$/, '/finance_test')
 process.env.DATABASE_URL = TEST_DB_URL
 process.env.BETTER_AUTH_SECRET ??= 'test-secret-test-secret-test-secret'
 process.env.BETTER_AUTH_URL = 'http://localhost:3000'
+delete process.env.DISABLE_SIGNUPS // .env may block signups in prod; tests create users freely
 export const ORIGIN = 'http://localhost:3000'
 
 let ready: Promise<Hono> | null = null

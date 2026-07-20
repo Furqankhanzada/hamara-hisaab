@@ -16,7 +16,7 @@
 
 ## Commands
 
-- Dev: `docker compose up -d db` then `PORT=3001 npx tsx src/index.ts` (host port 3000 is usually taken by another project).
+- Dev: `docker compose up -d db` then `npm run dev` — runs on :3001 against the **`finance_dev`** database (`.env` sets `DATABASE_URL`/`PORT`; never point dev at the prod `finance` db). Refresh dev data from prod: `docker exec financial-manager-db-1 sh -c 'dropdb -U finance --if-exists finance_dev && createdb -U finance finance_dev && pg_dump -U finance finance | psql -q -U finance -d finance_dev'`.
 - Checks: `npm run typecheck` · `npm test` · `npm run test:e2e` · `npm run build`
 - Deploy: `docker compose up -d --build app` — then **verify the served bundle hash changed** (`curl -s localhost:9700/ | grep -oE 'assets/index-[^"]+\.js'`); a stale image once passed the health check silently.
 
