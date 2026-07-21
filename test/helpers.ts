@@ -105,5 +105,7 @@ export async function mcp(key: string | null, method: string, params?: unknown, 
   return { status: res.status, body: data ? JSON.parse(data.slice(6)) : null }
 }
 
-export const thisMonth = () => new Date().toLocaleDateString('en-CA').slice(0, 7)
-export const today = () => new Date().toLocaleDateString('en-CA')
+// Karachi, not runner-local: the server stamps PKT dates, and CI runs in UTC —
+// between 19:00–24:00 UTC the two disagree and runner-local dates flake.
+export const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })
+export const thisMonth = () => today().slice(0, 7)

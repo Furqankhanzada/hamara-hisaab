@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test'
-import { onboard, type } from './util'
+import { onboard, pkToday, type } from './util'
 
 const monthLabel = (shift: number) => {
-  const d = new Date()
-  const m = new Date(d.getFullYear(), d.getMonth() + shift, 1)
+  const [y, mo] = pkToday().split('-').map(Number) // PKT — the app's month, not the runner's
+  const m = new Date(y, mo - 1 + shift, 1)
   return m.toLocaleDateString('en-PK', { month: 'long', year: 'numeric' }).toUpperCase()
 }
 

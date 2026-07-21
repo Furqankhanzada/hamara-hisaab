@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { onboard, type } from './util'
+import { onboard, pkToday, type } from './util'
 
 test('period toggles, stepper and custom range', async ({ page }) => {
   await onboard(page)
@@ -24,16 +24,14 @@ test('period toggles, stepper and custom range', async ({ page }) => {
   await expect(page.getByText('Rs 3,000')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Next period' })).toBeEnabled()
 
-  // custom range via typed dates
+  // custom range — fill() with ISO values: typed digit-segments in native date inputs are
+  // platform-dependent (Linux Chromium orders them differently than macOS), and dates must be
+  // Karachi to match the app's PKT day
   await page.getByRole('button', { name: 'Custom' }).click()
   const [from, to] = [page.locator('input[name="from"]'), page.locator('input[name="to"]')]
-  const today = new Date()
-  const mm = String(today.getMonth() + 1).padStart(2, '0')
-  const yyyy = today.getFullYear()
-  await from.click()
-  await from.pressSequentially(`01${mm}${yyyy}`)
-  await to.click()
-  await to.pressSequentially(`${String(today.getDate()).padStart(2, '0')}${mm}${yyyy}`)
+  const todayIso = pkToday()
+  await from.fill(`${todayIso.slice(0, 7)}-01`)
+  await to.fill(todayIso)
   await page.getByRole('button', { name: 'Show' }).click()
   await expect(page.getByText('Rs 3,000').first()).toBeVisible()
   await expect(page.getByText(/change vs .* days before/)).toBeVisible()

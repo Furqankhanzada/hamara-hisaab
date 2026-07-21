@@ -14,10 +14,16 @@ export async function type(input: Locator, text: string) {
   throw new Error(`typing "${text}" did not stick`)
 }
 
+/** Today in Pakistan time (the app's date basis) as YYYY-MM-DD — never runner-local in specs. */
+export const pkToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' })
+
 /** Register a fresh user and create their household; lands on the dashboard. */
 export async function onboard(page: Page) {
   const email = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@test.local`
   await page.goto('/')
+  // let the boot-time sync settle (wasm worker + snapshot 401 + local wipe) before interacting —
+  // on slow CI runners it otherwise lands mid-typing and re-renders the form under the test
+  await page.waitForLoadState('networkidle')
   await page.getByRole('button', { name: 'New here? Create an account' }).click()
   await type(page.getByLabel('Name'), 'E2E Tester')
   await type(page.getByLabel('Email'), email)
