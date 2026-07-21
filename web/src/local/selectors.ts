@@ -126,9 +126,10 @@ export async function localRead(path: string): Promise<unknown> {
   if (p === '/transactions') {
     const q = params.get('q')
     const limit = Number(params.get('limit') ?? 50)
+    const offset = Number(params.get('offset') ?? 0)
     return txRows(
-      `${txSelect}${q ? ' where note like ?' : ''} order by occurred_on desc, ord asc limit ?`,
-      q ? [`%${q}%`, limit] : [limit])
+      `${txSelect}${q ? ' where note like ?' : ''} order by occurred_on desc, ord asc limit ? offset ?`,
+      q ? [`%${q}%`, limit, offset] : [limit, offset])
   }
   const txOne = p.match(/^\/transactions\/([^/]+)$/)
   if (txOne) return (await txRows(`${txSelect} where id = ?`, [txOne[1]]))[0]

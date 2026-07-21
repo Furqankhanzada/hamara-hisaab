@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { api } from '../api'
 import { cn } from '@/lib/utils'
@@ -8,20 +8,38 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Spinner } from '@/components/ui/spinner'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Amount, Eyebrow, PageHeader } from '@/components/shared'
 import { TxForm, type Tx } from '../TxForm'
 
+const PAGE = 50
+
 export default function Transactions() {
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<Tx | null>(null)
-  const list = useQuery({
+  const list = useInfiniteQuery({
     queryKey: ['transactions', q],
-    queryFn: () => api<Tx[]>(`/transactions?limit=100${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+    queryFn: ({ pageParam }) => api<Tx[]>(`/transactions?limit=${PAGE}&offset=${pageParam}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => (last.length === PAGE ? pages.length * PAGE : undefined),
   })
+  const rows = list.data?.pages.flat() ?? []
+
+  // sentinel below the list: entering the viewport pulls the next page from local SQLite
+  const sentinel = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el) return
+    const io = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage()
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [list.hasNextPage, list.isFetchingNextPage, list.fetchNextPage])
 
   const byDate = new Map<string, Tx[]>()
-  for (const t of list.data ?? []) byDate.set(t.occurredOn, [...(byDate.get(t.occurredOn) ?? []), t])
+  for (const t of rows) byDate.set(t.occurredOn, [...(byDate.get(t.occurredOn) ?? []), t])
 
   return (
     <div>
@@ -40,7 +58,7 @@ export default function Transactions() {
         </div>
       )}
 
-      {list.data?.length === 0 && (
+      {!list.isLoading && rows.length === 0 && (
         <Empty>
           <EmptyHeader>
             <EmptyTitle>{q ? 'No entries match' : 'The ledger is empty'}</EmptyTitle>
@@ -96,6 +114,14 @@ export default function Transactions() {
             </section>
           )
         })}
+      </div>
+
+      <div ref={sentinel} data-testid="ledger-sentinel" className="h-8">
+        {list.isFetchingNextPage && (
+          <div className="flex justify-center py-2">
+            <Spinner />
+          </div>
+        )}
       </div>
 
       <Drawer open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
