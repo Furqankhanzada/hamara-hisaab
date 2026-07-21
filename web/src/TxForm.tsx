@@ -111,12 +111,13 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
           {currency !== appBase() && (
             <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="shrink-0">1 {currency} =</span>
-              <InputGroup className="w-32">
+              {/* flex, not fixed width: base-per-quote rates can be long either way (280 or 0.00359871) */}
+              <InputGroup className="min-w-28 flex-1">
                 <InputGroupAddon>{baseSymbol()}</InputGroupAddon>
-                <InputGroupInput type="number" step="any" min="0.0001" placeholder="auto"
+                <InputGroupInput type="number" step="any" min="0.00000001" placeholder="auto"
                   className="amount" value={rate} onChange={(e) => setRate(e.target.value)} />
               </InputGroup>
-              <span>leave blank for today's rate</span>
+              <span className="shrink-0">blank = today's rate</span>
             </div>
           )}
         </Field>
