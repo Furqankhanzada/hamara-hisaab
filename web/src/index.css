@@ -46,6 +46,10 @@
     /* ledger semantics: money-in / money-out */
     --color-inflow: var(--inflow);
     --color-outflow: var(--outflow);
+    /* ledger card surfaces: count pill bg, faint metadata text, hairline borders */
+    --color-chip: var(--chip);
+    --color-faint: var(--faint);
+    --color-line: var(--line);
     /* chart series colors — CVD-validated pair, see dataviz validator */
     --color-chart-in: var(--chart-in);
     --color-chart-out: var(--chart-out);
@@ -81,8 +85,11 @@
     --border: oklch(0.905 0.01 150);
     --input: oklch(0.885 0.012 150);
     --ring: oklch(0.55 0.07 166);
-    --inflow: oklch(0.46 0.09 166);
-    --outflow: oklch(0.5 0.155 27);
+    --inflow: #1f6b3f;
+    --outflow: #a8331f;
+    --chip: #f1f0e9;
+    --faint: #a6afa6;
+    --line: rgba(0, 0, 0, 0.09);
     --chart-in: oklch(0.62 0.107 184);
     --chart-out: oklch(0.55 0.145 33);
     --chart-1: oklch(0.42 0.085 166);
@@ -120,8 +127,11 @@
     --border: oklch(1 0 0 / 12%);
     --input: oklch(1 0 0 / 16%);
     --ring: oklch(0.6 0.07 166);
-    --inflow: oklch(0.78 0.09 166);
-    --outflow: oklch(0.7 0.14 27);
+    --inflow: #7fd9ad;
+    --outflow: #ef7f66;
+    --chip: #1a241e;
+    --faint: #5d6b62;
+    --line: rgba(255, 255, 255, 0.07);
     --chart-in: oklch(0.62 0.11 184);
     --chart-out: oklch(0.6 0.14 27);
     --chart-1: oklch(0.78 0.09 166);

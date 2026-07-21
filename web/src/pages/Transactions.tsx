@@ -84,19 +84,19 @@ export default function Transactions() {
           return (
             <section key={date} className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between px-1">
-                <Eyebrow>
+                <Eyebrow className="text-xs font-semibold tracking-[0.06em]">
                   {new Date(date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'short', day: 'numeric', month: 'short' })}
                 </Eyebrow>
                 {dayOut > 0 && <Amount value={dayOut} flow="out" className="text-xs font-semibold" />}
               </div>
               {cards.map(({ cat, list, total, type }) => (
-                <Card key={cat} className="gap-0 py-0">
-                  <div className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
-                    <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                <Card key={cat} className="gap-0 rounded-2xl border-line py-0">
+                  <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3.5">
+                    <span className="flex min-w-0 items-center gap-2 text-[15px] font-semibold">
                       <span className="truncate">{cat}</span>
-                      <Badge variant="secondary" className="shrink-0 font-normal">
+                      <span className="shrink-0 rounded-md bg-chip px-[7px] py-[2px] text-[11px] font-normal text-muted-foreground">
                         {list.length} item{list.length > 1 ? 's' : ''}
-                      </Badge>
+                      </span>
                     </span>
                     <Amount value={total} flow={type === 'income' ? 'in' : 'out'} className="shrink-0 text-sm" />
                   </div>
@@ -104,16 +104,20 @@ export default function Transactions() {
                     <button
                       key={t.id}
                       onClick={() => setEditing(t)}
-                      className={cn('flex w-full items-start justify-between gap-3 px-4 py-3 text-left active:bg-accent', i > 0 && 'border-t')}
+                      className={cn('flex w-full items-start justify-between gap-3 px-4 pt-2.5 pb-3 text-left active:bg-accent', i > 0 && 'border-t border-line')}
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 text-sm">
+                        <div className="flex items-center gap-1.5 text-[13px]">
                           <span className="break-words">{t.note || cat}</span>
                           {t.source === 'recurring' && <Badge variant="secondary">auto</Badge>}
                         </div>
                         {t.tags?.length > 0 && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {t.tags.map((tag) => <Badge key={tag} variant="outline" className="font-normal">{tag}</Badge>)}
+                          <div className="mt-1 flex flex-wrap gap-[5px]">
+                            {t.tags.map((tag) => (
+                              <span key={tag} className="rounded-[5px] border border-line px-[7px] py-px text-[10px] font-medium whitespace-nowrap text-inflow">
+                                {tag}
+                              </span>
+                            ))}
                           </div>
                         )}
                         {t.originalCurrency && (
@@ -124,8 +128,12 @@ export default function Transactions() {
                         )}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-0.5">
-                        <Amount value={t.amount} flow={t.type === 'income' ? 'in' : 'out'} className="text-sm" />
-                        <span className="text-xs text-muted-foreground">{t.paidBy}</span>
+                        <Amount
+                          value={t.amount}
+                          flow={t.type === 'income' ? 'in' : undefined}
+                          className={cn('text-[13px]', t.type === 'expense' && 'text-muted-foreground')}
+                        />
+                        <span className="text-[10px] text-faint">{t.paidBy}</span>
                       </div>
                     </button>
                   ))}
