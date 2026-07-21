@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTheme } from 'next-themes'
 import { Copy, Plus, RotateCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, authClient } from '../api'
+import { api, authClient, baseSymbol, symbolFor } from '../api'
+import { appBase } from '../local/dates'
 import { clearLocal } from '../local/store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -140,6 +141,12 @@ function HouseholdSection({ me }: { me: Me }) {
           </select>
           <span className="text-xs text-muted-foreground">Entry dates, budgets and reports follow this clock.</span>
         </Field>
+        <Field>
+          <FieldLabel>Base currency</FieldLabel>
+          <div className="flex min-h-8 items-center rounded-lg border border-input px-2.5 text-sm text-muted-foreground">
+            {h.baseCurrency} — set at creation; amounts are stored in it, so it can't change.
+          </div>
+        </Field>
       </CardContent>
     </Card>
   )
@@ -271,7 +278,7 @@ function AccountsSection() {
                   className="amount bg-transparent text-sm outline-none"
                   value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'PKR' ? 'Rs' : c}</option>)}
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c === appBase() ? symbolFor(c) : c}</option>)}
                 </select>
               </InputGroupAddon>
               <InputGroupInput type="number" inputMode="decimal" step="any" min="0" placeholder="0" className="amount"
@@ -327,7 +334,7 @@ function ManageAccount({ a, onDone }: { a: Account; onDone: () => void }) {
                 className="amount bg-transparent text-sm outline-none"
                 value={currency} onChange={(e) => setCurrency(e.target.value)}
               >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'PKR' ? 'Rs' : c}</option>)}
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c === appBase() ? symbolFor(c) : c}</option>)}
               </select>
             </InputGroupAddon>
             <InputGroupInput id="account-balance" type="number" inputMode="decimal" step="any" min="0" required className="amount"
@@ -546,7 +553,7 @@ function ZakatSection() {
           <Field className="flex-1">
             <FieldLabel htmlFor="nisab">Nisab</FieldLabel>
             <InputGroup>
-              <InputGroupAddon>Rs</InputGroupAddon>
+              <InputGroupAddon>{baseSymbol()}</InputGroupAddon>
               <InputGroupInput id="nisab" type="number" min="1" required className="amount"
                 placeholder={z?.nisab_amount ? String(z.nisab_amount) : ''} value={form.nisab}
                 onChange={(e) => setForm({ ...form, nisab: e.target.value })} />

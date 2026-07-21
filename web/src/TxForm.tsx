@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { api, todayLocal } from './api'
+import { api, baseSymbol, symbolFor, todayLocal } from './api'
+import { appBase } from './local/dates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -99,7 +100,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
               >
-                {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'PKR' ? 'Rs' : c}</option>)}
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c === appBase() ? symbolFor(c) : c}</option>)}
               </select>
             </InputGroupAddon>
             <InputGroupInput
@@ -111,7 +112,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
             <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="shrink-0">1 {currency} =</span>
               <InputGroup className="w-32">
-                <InputGroupAddon>Rs</InputGroupAddon>
+                <InputGroupAddon>{baseSymbol()}</InputGroupAddon>
                 <InputGroupInput type="number" step="any" min="0.0001" placeholder="auto"
                   className="amount" value={rate} onChange={(e) => setRate(e.target.value)} />
               </InputGroup>
@@ -157,7 +158,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
           {existing && (
             <Confirm
               title="Delete this entry?"
-              description={`${existing.category ?? 'Uncategorized'} · Rs ${Number(existing.amount)} on ${existing.occurredOn}`}
+              description={`${existing.category ?? 'Uncategorized'} · ${baseSymbol()} ${Number(existing.amount)} on ${existing.occurredOn}`}
               actionLabel="Delete"
               onConfirm={del}
               trigger={<Button type="button" variant="outline" className="text-destructive">Delete</Button>}
