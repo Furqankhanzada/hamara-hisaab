@@ -13,6 +13,8 @@ export function startJobs() {
   // two attempts: PSX closes mid-afternoon, MUFAP NAV validity dates trickle in through the evening
   cron.schedule('30 18 * * *', () => void refreshPrices().catch(logErr('prices')), tz)
   cron.schedule('0 22 * * *', () => void refreshPrices().catch(logErr('prices')), tz)
+  // third run at 03:00 PKT — after US market close, for global 'stock' instruments
+  cron.schedule('0 3 * * *', () => void refreshPrices().catch(logErr('prices')), tz)
   // catch up on missed recurring bills after downtime
   void materializeDueRules().catch(logErr('recurring-startup'))
 }

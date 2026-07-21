@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, baseSymbol } from '../api'
+import { appBase } from '../local/dates'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -219,14 +220,16 @@ function ManageHolding({ h, onDone }: { h: Holding; onDone: () => void }) {
 }
 
 const KINDS = [
-  { value: 'psx_stock', label: 'PSX stock — price auto-fetched' },
-  { value: 'mutual_fund', label: 'Mutual fund — NAV from MUFAP' },
+  { value: 'stock', label: 'Stock / ETF / Crypto — auto-priced (AAPL, VOO, BTC-USD)' },
+  { value: 'psx_stock', label: 'PSX stock — Pakistan' },
+  { value: 'mutual_fund', label: 'Mutual fund — MUFAP (Pakistan)' },
   { value: 'other', label: 'Other asset — manual valuation' },
 ]
 
 function AddHolding({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient()
-  const [kind, setKind] = useState<'psx_stock' | 'mutual_fund' | 'other'>('psx_stock')
+  // global households start on the global kind; the family's PKR default stays PSX
+  const [kind, setKind] = useState<'stock' | 'psx_stock' | 'mutual_fund' | 'other'>(appBase() === 'PKR' ? 'psx_stock' : 'stock')
   const [form, setForm] = useState({ symbol: '', fund: '', name: '', units: '', cost: '' })
   const [shared, setShared] = useState(false)
 
@@ -238,9 +241,9 @@ function AddHolding({ onDone }: { onDone: () => void }) {
         json: {
           instrument: {
             kind,
-            symbol: kind === 'psx_stock' ? form.symbol.toUpperCase() : undefined,
+            symbol: kind === 'psx_stock' || kind === 'stock' ? form.symbol.toUpperCase() : undefined,
             mufap_fund_name: kind === 'mutual_fund' ? form.fund : undefined,
-            name: form.name || (kind === 'psx_stock' ? form.symbol.toUpperCase() : form.fund),
+            name: form.name || (kind === 'psx_stock' || kind === 'stock' ? form.symbol.toUpperCase() : form.fund),
           },
           units: Number(form.units),
           avg_cost: form.cost ? Number(form.cost) : undefined,
@@ -270,6 +273,14 @@ function AddHolding({ onDone }: { onDone: () => void }) {
           </Select>
         </Field>
 
+        {kind === 'stock' && (
+          <Field>
+            <FieldLabel htmlFor="symbol">Symbol</FieldLabel>
+            <Input id="symbol" placeholder="AAPL / VOO / BTC-USD" required className="amount uppercase"
+              value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} />
+            <FieldDescription>Yahoo Finance symbol — prices auto-fetch in the quote's own currency.</FieldDescription>
+          </Field>
+        )}
         {kind === 'psx_stock' && (
           <Field>
             <FieldLabel htmlFor="symbol">PSX symbol</FieldLabel>
