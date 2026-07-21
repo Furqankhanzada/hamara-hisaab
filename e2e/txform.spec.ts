@@ -28,6 +28,42 @@ test('expense/income toggle switches type and category list', async ({ page }) =
   await expect(page.getByText('+Rs 75,000').first()).toBeVisible()
 })
 
+test('create tags, toggle them on an expense, and see them survive a reload', async ({ page }) => {
+  await onboard(page)
+  await page.getByRole('button', { name: 'Add entry' }).click()
+
+  // a new tag comes back selected, so it applies to the entry being written
+  const newTag = page.getByLabel('New tag')
+  await type(newTag, 'meat')
+  await newTag.press('Enter')
+  await expect(page.getByRole('button', { name: 'meat', pressed: true })).toBeVisible()
+  await type(newTag, 'chicken')
+  await newTag.press('Enter')
+  const chicken = page.getByRole('button', { name: 'chicken', pressed: true })
+  await expect(chicken).toBeVisible()
+
+  // real clicks, not a synthetic value set: pressed must flip both ways and the form stay open
+  await chicken.click()
+  await expect(page.getByRole('button', { name: 'chicken', pressed: false })).toBeVisible()
+  await page.getByRole('button', { name: 'chicken' }).click()
+  await expect(page.getByRole('button', { name: 'chicken', pressed: true })).toBeVisible()
+  await expect(page.getByLabel('Amount')).toBeVisible()
+
+  await type(page.getByLabel('Amount'), '1800')
+  await type(page.getByLabel('Note'), 'chicken breast')
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  await expect(page.getByText('Expense added')).toBeVisible()
+
+  await page.getByRole('link', { name: 'Ledger' }).click()
+  const row = page.getByRole('button').filter({ hasText: 'chicken breast' })
+  await expect(row.getByText('meat', { exact: true })).toBeVisible()
+
+  // the reload round-trips through /snapshot and the local SQLite mirror
+  await page.reload()
+  await expect(row.getByText('meat', { exact: true })).toBeVisible()
+  await expect(row.getByText('chicken', { exact: true })).toBeVisible()
+})
+
 test('delete an entry via the confirm dialog (cancel first)', async ({ page }) => {
   await onboard(page)
   await page.getByRole('button', { name: 'Add entry' }).click()

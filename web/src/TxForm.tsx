@@ -13,14 +13,20 @@ import { Spinner } from '@/components/ui/spinner'
 import { CURRENCIES, Confirm } from '@/components/shared'
 
 export type Category = { id: string; name: string; kind: 'expense' | 'income' }
+export type Tag = { id: string; name: string }
 export type Tx = {
   id: string; type: 'expense' | 'income'; amount: string; categoryId: string | null
   originalAmount: string | null; originalCurrency: string | null; fxRate: string | null
-  category: string | null; note: string | null; occurredOn: string; source: string; userId: string; paidBy: string
+  category: string | null; tags: string[]; note: string | null; occurredOn: string
+  source: string; userId: string; paidBy: string
 }
 
 export function useCategories() {
   return useQuery({ queryKey: ['categories'], queryFn: () => api<Category[]>('/categories') })
+}
+
+export function useTags() {
+  return useQuery({ queryKey: ['tags'], queryFn: () => api<Tag[]>('/tags') })
 }
 
 export function invalidateLedger(qc: QueryClient) {
@@ -32,22 +38,36 @@ export function invalidateLedger(qc: QueryClient) {
 export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => void }) {
   const qc = useQueryClient()
   const categories = useCategories()
+  const tags = useTags()
   const [type, setType] = useState<'expense' | 'income'>(existing?.type ?? 'expense')
   const [amount, setAmount] = useState(existing ? String(Number(existing.originalAmount ?? existing.amount)) : '')
   const [currency, setCurrency] = useState(existing?.originalCurrency ?? 'PKR')
   const [rate, setRate] = useState(existing?.fxRate ? String(Number(existing.fxRate)) : '')
   const [categoryId, setCategoryId] = useState<string | null>(existing?.categoryId ?? null)
+  const [picked, setPicked] = useState<string[]>(existing?.tags ?? [])
+  const [newTag, setNewTag] = useState('')
   const [note, setNote] = useState(existing?.note ?? '')
   const [date, setDate] = useState(existing?.occurredOn ?? todayLocal())
   const [busy, setBusy] = useState(false)
 
   const cats = (categories.data ?? []).filter((c) => c.kind === type)
 
+  /** Adding to the vocabulary stays a deliberate act — that's what keeps tags exact. */
+  async function addTag() {
+    const name = newTag.trim()
+    if (!name) return
+    setNewTag('')
+    const tag = await api<Tag>('/tags', { method: 'POST', json: { name } })
+    qc.invalidateQueries({ queryKey: ['tags'] })
+    setPicked((p) => (p.includes(tag.name) ? p : [...p, tag.name]))
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
     const body = {
-      type, amount: Number(amount), category_id: categoryId || undefined, note: note || undefined, occurred_on: date,
+      type, amount: Number(amount), category_id: categoryId || undefined, tags: picked,
+      note: note || undefined, occurred_on: date,
       currency: currency !== 'PKR' ? currency : undefined,
       fx_rate: currency !== 'PKR' && rate ? Number(rate) : undefined,
     }
@@ -56,7 +76,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
       else await api('/transactions', { method: 'POST', json: body })
       invalidateLedger(qc)
       toast(existing ? 'Entry updated' : `${type === 'expense' ? 'Expense' : 'Income'} added`)
-      if (!existing) { setAmount(''); setNote('') }
+      if (!existing) { setAmount(''); setNote(''); setPicked([]) }
       onDone?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save the entry')
@@ -143,6 +163,34 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
             </Select>
           </Field>
         </div>
+
+        {/* ponytail: a flat chip row — swap in a searchable combobox past ~25 tags */}
+        <Field>
+          <FieldLabel>Tags</FieldLabel>
+          {(tags.data ?? []).length > 0 && (
+            <ToggleGroup
+              multiple
+              className="w-full flex-wrap"
+              variant="outline"
+              size="sm"
+              value={picked}
+              onValueChange={(v: string[]) => setPicked(v)}
+            >
+              {(tags.data ?? []).map((t) => (
+                <ToggleGroupItem key={t.id} value={t.name}>{t.name}</ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          )}
+          <Input
+            aria-label="New tag"
+            placeholder="New tag — press Enter"
+            className="mt-1.5"
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            // Enter would submit the whole form otherwise
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addTag() } }}
+          />
+        </Field>
 
         <Field>
           <FieldLabel htmlFor="tx-note">Note</FieldLabel>

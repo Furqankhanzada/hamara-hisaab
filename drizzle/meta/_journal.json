@@ -43,6 +43,13 @@
       "when": 1784621909316,
       "tag": "0005_abandoned_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784629848050,
+      "tag": "0006_silly_gabe_jones",
+      "breakpoints": true
     }
   ]
 }
