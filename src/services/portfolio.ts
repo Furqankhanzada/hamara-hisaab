@@ -8,11 +8,12 @@ import { visibilityInput } from './accounts'
 import { fetchPsxClose } from './prices/psx'
 import { fetchMufapNavs, norm } from './prices/mufap'
 import { latestRatesMap, marketToday, refreshFxRates } from './fx'
+import { fetchYahooQuote } from './prices/yahoo'
 
 export const instrumentInput = z.object({
   id: z.string().uuid().optional().describe('Client-generated id — makes offline-sync replays idempotent'),
-  kind: z.enum(['psx_stock', 'mutual_fund', 'other']),
-  symbol: z.string().optional().describe("PSX ticker, e.g. 'MEBL' (psx_stock only)"),
+  kind: z.enum(['stock', 'psx_stock', 'mutual_fund', 'other']).describe("'stock' = global stock/ETF/crypto auto-priced via Yahoo symbol"),
+  symbol: z.string().optional().describe("Ticker: PSX e.g. 'MEBL' (psx_stock), or Yahoo symbol e.g. 'AAPL', 'VOO', 'BTC-USD' (stock)"),
   mufap_fund_name: z.string().optional().describe('Exact fund name as it appears on mufap.com.pk (mutual_fund only)'),
   name: z.string().min(1).describe("Display name, e.g. 'Meezan Bank' or 'Gold jewellery'"),
 })
@@ -22,7 +23,7 @@ export const holdingInput = z.object({
   instrument_id: z.string().optional(),
   instrument: instrumentInput.optional().describe('Create/find the instrument inline instead of passing instrument_id'),
   units: z.coerce.number().positive().describe('Units/shares held (1 for lump assets like gold or property)'),
-  avg_cost: z.coerce.number().positive().optional().describe('Average buy price per unit in PKR'),
+  avg_cost: z.coerce.number().positive().optional().describe('Average buy price per unit in the household base currency'),
   zakatable: z.boolean().default(true),
   visibility: visibilityInput,
   note: z.string().optional(),
@@ -50,7 +51,7 @@ export async function searchInstruments(search?: string) {
 }
 
 export async function createInstrument(input: z.infer<typeof instrumentInput>) {
-  if (input.kind === 'psx_stock' && !input.symbol) throw new Error('psx_stock needs a symbol')
+  if ((input.kind === 'psx_stock' || input.kind === 'stock') && !input.symbol) throw new Error(`${input.kind} needs a symbol`)
   if (input.kind === 'mutual_fund' && !input.mufap_fund_name) throw new Error('mutual_fund needs mufap_fund_name for auto NAV (see mufap.com.pk daily NAV table)')
   if (input.id) {
     const [existing] = await db.select().from(instruments).where(eq(instruments.id, input.id))
@@ -177,13 +178,13 @@ export async function recordPrice(ctx: Ctx, input: z.infer<typeof priceInput>) {
   return row
 }
 
-async function upsertFetchedPrice(instrumentId: string, asOf: string, price: number, source: 'psx' | 'mufap') {
+async function upsertFetchedPrice(instrumentId: string, asOf: string, price: number, source: 'psx' | 'mufap' | 'yahoo', currency: string) {
   // manual entries win over fetched ones for the same day
   await db.execute(sql`
-    insert into prices (instrument_id, as_of, price, source)
-    values (${instrumentId}, ${asOf}, ${price.toFixed(4)}, ${source})
+    insert into prices (instrument_id, as_of, price, currency, source)
+    values (${instrumentId}, ${asOf}, ${price.toFixed(4)}, ${currency}, ${source})
     on conflict (instrument_id, as_of) do update
-    set price = excluded.price, source = excluded.source
+    set price = excluded.price, currency = excluded.currency, source = excluded.source
     where prices.source != 'manual'`)
 }
 
@@ -195,10 +196,20 @@ export async function refreshPrices() {
 
   const result = { updated: 0, skipped: 0, errors: [] as string[] }
 
+  for (const inst of held.filter(i => i.kind === 'stock' && i.symbol)) {
+    try {
+      const quote = await fetchYahooQuote(inst.symbol!)
+      if (quote) { await upsertFetchedPrice(inst.id, quote.asOf, quote.price, 'yahoo', quote.currency); result.updated++ }
+      else { result.errors.push(`Yahoo ${inst.symbol}: no data`) }
+    } catch (e) {
+      result.errors.push(`Yahoo ${inst.symbol}: ${(e as Error).message}`)
+    }
+  }
+
   for (const inst of held.filter(i => i.kind === 'psx_stock' && i.symbol)) {
     try {
       const close = await fetchPsxClose(inst.symbol!)
-      if (close) { await upsertFetchedPrice(inst.id, close.asOf, close.price, 'psx'); result.updated++ }
+      if (close) { await upsertFetchedPrice(inst.id, close.asOf, close.price, 'psx', 'PKR'); result.updated++ }
       else { result.errors.push(`PSX ${inst.symbol}: no data`) }
     } catch (e) {
       result.errors.push(`PSX ${inst.symbol}: ${(e as Error).message}`)
@@ -211,7 +222,7 @@ export async function refreshPrices() {
       const navs = await fetchMufapNavs()
       for (const inst of fundInstruments) {
         const nav = navs.get(norm(inst.mufapFundName!))
-        if (nav) { await upsertFetchedPrice(inst.id, nav.asOf, nav.nav, 'mufap'); result.updated++ }
+        if (nav) { await upsertFetchedPrice(inst.id, nav.asOf, nav.nav, 'mufap', 'PKR'); result.updated++ }
         else { result.errors.push(`MUFAP: fund name not found in NAV table: "${inst.mufapFundName}"`) }
       }
     } catch (e) {

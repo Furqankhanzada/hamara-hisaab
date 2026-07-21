@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { getApp, json, mcp, req } from '../helpers'
+import { db } from '../../src/db/client'
+import { prices } from '../../src/db/schema'
 
 /** Create a user whose household uses the given base currency. */
 async function makeUserWith(base: string) {
@@ -70,6 +72,21 @@ describe('household base currency', () => {
       '/api/v1/snapshot', { key: u.key })
     expect(snap.household.baseCurrency).toBe('USD')
     expect(snap.fx_rates.find((r) => r.quote === 'EUR')?.rate).toBeCloseTo(1.1)
+  })
+
+  it('global stock holdings: feed-currency prices convert to the household base', async () => {
+    const u = await makeUserWith('PKR')
+    await mcp(u.key, 'tools/call', {
+      name: 'add_holding',
+      arguments: { instrument: { kind: 'stock', symbol: `AAPL${crypto.randomUUID().slice(0, 4)}`, name: 'Apple' }, units: 10, visibility: 'private' },
+    })
+    const snap = await json<{ portfolio: { holdings: { instrument_id: string; kind: string }[] } }>('/api/v1/snapshot', { key: u.key })
+    expect(snap.portfolio.holdings[0].kind).toBe('stock')
+    // simulate a Yahoo feed row (USD) + a recorded USD rate, then expect a PKR valuation
+    await db.insert(prices).values({ instrumentId: snap.portfolio.holdings[0].instrument_id, asOf: '2026-01-01', price: '200.0000', currency: 'USD', source: 'yahoo' })
+    await json('/api/v1/fx/rates', { key: u.key, json: { currency: 'USD', rate: 280 } })
+    const pf = await json<{ total_value: number }>('/api/v1/portfolio', { key: u.key })
+    expect(pf.total_value).toBeCloseTo(10 * 200 * 280)
   })
 
   it('manual price valuations record in the household base and value the portfolio directly', async () => {

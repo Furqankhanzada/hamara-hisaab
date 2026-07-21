@@ -37,4 +37,14 @@ test('USD household: base currency drives defaults and formatting everywhere', a
   await page.getByRole('button', { name: 'Add account' }).click()
   await expect(page.getByText('Account added')).toBeVisible()
   await expect(page.getByText('$ 1,200').first()).toBeVisible()
+
+  // Invest: kind defaults to the global Stock option for non-PKR households
+  await page.getByRole('link', { name: 'Invest' }).click()
+  await page.getByRole('button', { name: 'Add holding' }).click()
+  await expect(page.getByRole('combobox')).toContainText('Stock / ETF / Crypto')
+  await type(page.getByLabel('Symbol', { exact: true }), 'VOO')
+  await type(page.getByLabel('Units'), '3')
+  await page.getByRole('button', { name: 'Add holding' }).last().click()
+  await expect(page.getByText('Holding added')).toBeVisible()
+  await expect(page.getByText('VOO').first()).toBeVisible()
 })

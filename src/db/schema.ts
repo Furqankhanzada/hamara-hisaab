@@ -79,7 +79,7 @@ export const accounts = pgTable('accounts', {
 // Global (shared across households): a PSX symbol / mutual fund is the same for everyone
 export const instruments = pgTable('instruments', {
   id: id(),
-  kind: text('kind', { enum: ['psx_stock', 'mutual_fund', 'other'] }).notNull(),
+  kind: text('kind', { enum: ['stock', 'psx_stock', 'mutual_fund', 'other'] }).notNull(),
   symbol: text('symbol').unique(),
   mufapFundName: text('mufap_fund_name').unique(), // exact string match against the MUFAP NAV table
   name: text('name').notNull(),
@@ -104,7 +104,7 @@ export const prices = pgTable('prices', {
   // PSX/MUFAP feeds quote in PKR (a data-source fact, hence a real default);
   // manual valuations record in the household's base currency
   currency: text('currency').notNull().default('PKR'),
-  source: text('source', { enum: ['psx', 'mufap', 'manual'] }).notNull(),
+  source: text('source', { enum: ['psx', 'mufap', 'yahoo', 'manual'] }).notNull(),
 }, (t) => [primaryKey({ columns: [t.instrumentId, t.asOf] })])
 
 export const loans = pgTable('loans', {

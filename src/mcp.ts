@@ -64,9 +64,9 @@ function buildServer(ctx: Ctx) {
 
   tool('get_portfolio', "Investment holdings visible to you (your own + household-shared) with latest prices/NAVs, value, cost and gain (household base currency). Wealth items are private per member by default; visibility: 'shared' exposes one to the household.",
     {}, () => portfolio.getPortfolio(ctx))
-  tool('list_instruments', 'Search known instruments (PSX stocks, mutual funds, other assets).',
+  tool('list_instruments', 'Search known instruments (global stocks/ETFs/crypto, PSX stocks, mutual funds, other assets).',
     { search: z.string().optional() }, (a: { search?: string }) => portfolio.searchInstruments(a.search))
-  tool('add_holding', 'Add an investment holding; pass instrument_id, or instrument {kind, symbol|mufap_fund_name, name} to create one.',
+  tool('add_holding', "Add an investment holding; pass instrument_id, or instrument {kind, symbol|mufap_fund_name, name} to create one. kind 'stock' covers global stocks/ETFs/crypto via Yahoo symbols (AAPL, VOO, BTC-USD).",
     portfolio.holdingInput.shape, (a) => portfolio.addHolding(ctx, portfolio.holdingInput.parse(a)))
   tool('update_holding', 'Adjust units, avg cost, visibility or zakatable flag of a holding after a buy/sell.',
     { holding_id: z.string(), ...portfolio.holdingUpdate.shape },
@@ -79,7 +79,7 @@ function buildServer(ctx: Ctx) {
     async (a: { instrument_id: string }) => (await portfolio.updateInstrument(ctx, a.instrument_id, portfolio.instrumentUpdate.parse(a))) ?? { error: 'not found' })
   tool('record_price', 'Manually record a price/NAV/valuation for an instrument (wins over auto-fetched prices).',
     portfolio.priceInput.shape, (a) => portfolio.recordPrice(ctx, portfolio.priceInput.parse(a)))
-  tool('refresh_prices', 'Fetch latest market data now: PSX closing prices, MUFAP fund NAVs, and exchange rates.', {}, () => portfolio.refreshPrices())
+  tool('refresh_prices', 'Fetch latest market data now: global quotes (Yahoo), PSX closing prices, MUFAP fund NAVs, and exchange rates.', {}, () => portfolio.refreshPrices())
 
   tool('add_loan', 'Record money lent to or borrowed from someone (qarz).', loans.loanInput.shape, (a) => loans.addLoan(ctx, loans.loanInput.parse(a)))
   tool('list_loans', 'List loans visible to you (your own + household-shared) with outstanding amounts; filter by status open|settled.',

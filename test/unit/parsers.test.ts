@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchPsxClose } from '../../src/services/prices/psx'
 import { fetchMufapNavs } from '../../src/services/prices/mufap'
+import { fetchYahooQuote } from '../../src/services/prices/yahoo'
 
 const asResponse = (body: string | object, ok = true) =>
   ({ ok, status: ok ? 200 : 500, json: async () => body, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) }) as Response
@@ -45,5 +46,30 @@ describe('MUFAP NAV parser', () => {
     expect(navs.get('Al Meezan Mutual Fund')).toEqual({ nav: 49.5473, asOf: '2026-07-17' })
     expect(navs.get('Mahaana Islamic Cash Fund')?.nav).toBe(1107.7085)
     expect(navs.has('No NAV Fund')).toBe(false) // unparseable NAV rows are skipped
+  })
+})
+
+describe('Yahoo chart parser', () => {
+  it('reads price, currency and exchange-local date from meta', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => asResponse({
+      chart: { result: [{ meta: {
+        regularMarketPrice: 213.55, currency: 'USD',
+        regularMarketTime: 1784322000, // 2026-07-17 21:00 UTC -> still Jul 17 in New York
+        exchangeTimezoneName: 'America/New_York',
+      } }] },
+    })))
+    const q = await fetchYahooQuote('AAPL')
+    expect(q?.price).toBe(213.55)
+    expect(q?.currency).toBe('USD')
+    expect(q?.asOf).toBe('2026-07-17')
+  })
+
+  it('fails soft on missing meta, missing price, and non-200s', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => asResponse({ chart: { result: [{}] } })))
+    expect(await fetchYahooQuote('AAPL')).toBeNull()
+    vi.stubGlobal('fetch', vi.fn(async () => asResponse({ chart: { result: [{ meta: { currency: 'USD' } }] } })))
+    expect(await fetchYahooQuote('AAPL')).toBeNull()
+    vi.stubGlobal('fetch', vi.fn(async () => asResponse({}, false)))
+    expect(await fetchYahooQuote('AAPL')).toBeNull()
   })
 })
