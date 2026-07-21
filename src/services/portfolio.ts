@@ -161,7 +161,7 @@ export async function getPortfolio(ctx: Ctx) {
     total_cost: totalCost,
     total_gain: total - totalCost,
     unpriced_holdings: unpriced || undefined,
-    currency: 'PKR',
+    currency: ctx.baseCurrency,
   }
 }
 
