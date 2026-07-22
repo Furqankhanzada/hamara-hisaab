@@ -545,7 +545,7 @@ function ZakatSection() {
             </div>
           </details>
         )}
-        <form className="flex items-end gap-2" onSubmit={async (e) => {
+        <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => {
           e.preventDefault()
           await api('/zakat/settings', { method: 'PUT', json: { nisab_amount: Number(form.nisab), next_due_date: form.due || undefined } })
           qc.invalidateQueries({ queryKey: ['zakat'] }); toast('Zakat settings saved')

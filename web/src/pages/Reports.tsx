@@ -92,7 +92,7 @@ export default function Reports() {
 
       {custom ? (
         <form
-          className="flex items-center gap-2"
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault()
             const fd = new FormData(e.currentTarget)
