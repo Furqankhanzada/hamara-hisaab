@@ -131,7 +131,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
           value={[type]}
           onValueChange={(v: string[]) => {
             const next = v[0] as 'expense' | 'income' | undefined
-            if (next && next !== type) { setType(next); setCategoryId(null) }
+            if (next && next !== type) { setType(next); setCategoryId(null); if (next === 'income') setPicked([]) }
           }}
         >
           <ToggleGroupItem value="expense" className="flex-1">Expense</ToggleGroupItem>
@@ -195,9 +195,10 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
           </Field>
         </div>
 
-        {/* shadcn's multi-select: chips live inside the field, type to filter, Enter on a name
-            nothing matches adds it to the vocabulary. `items` must be stable and grow-only —
-            the combobox reconciles its value against it, so a shrinking list drops selections. */}
+        {/* Tags describe what was bought — expenses only, not income. shadcn's multi-select: chips
+            live inside the field, type to filter, Enter on a name nothing matches adds it. `items`
+            must be stable and grow-only — the combobox reconciles its value against it. */}
+        {type === 'expense' && (
         <Field>
           <FieldLabel>Tags</FieldLabel>
           <Combobox
@@ -227,6 +228,7 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
             </ComboboxContent>
           </Combobox>
         </Field>
+        )}
 
         <Field>
           <FieldLabel htmlFor="tx-note">Note</FieldLabel>

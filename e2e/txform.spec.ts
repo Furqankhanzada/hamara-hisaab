@@ -6,9 +6,11 @@ test('expense/income toggle switches type and category list', async ({ page }) =
   await page.getByRole('button', { name: 'Add entry' }).click()
 
   await expect(page.getByRole('button', { name: 'Expense', pressed: true })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Tags' })).toBeVisible() // tags on expenses…
   await page.getByRole('button', { name: 'Income' }).click()
   await expect(page.getByRole('button', { name: 'Income', pressed: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Add income' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Tags' })).toHaveCount(0) // …not income
 
   // income categories, not expense ones
   const category = page.getByRole('combobox', { name: 'Category' })
