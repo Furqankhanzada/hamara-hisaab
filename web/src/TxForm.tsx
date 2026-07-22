@@ -171,11 +171,12 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field>
+          <Field className="min-w-0">
             <FieldLabel htmlFor="tx-date">Date</FieldLabel>
-            <Input id="tx-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+            {/* iOS date inputs have a large intrinsic width; min-w-0 lets the column win */}
+            <Input id="tx-date" type="date" required className="min-w-0" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          <Field>
+          <Field className="min-w-0">
             <FieldLabel>Category</FieldLabel>
             <Select
               items={cats.map((c) => ({ value: c.id, label: c.name }))}
