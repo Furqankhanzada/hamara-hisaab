@@ -107,7 +107,7 @@ test('delete an entry via the confirm dialog (cancel first)', async ({ page }) =
   await expect(page.getByText('delete me')).toHaveCount(0)
 })
 
-test('on a phone the date field stays in its column and the category list opens below the trigger', async ({ page }) => {
+test('on a phone Date takes its own row and the category list opens below the trigger', async ({ page }) => {
   await page.setViewportSize({ width: 414, height: 896 }) // iPhone 11
   await onboard(page)
   await page.getByRole('button', { name: 'Add entry' }).click()
@@ -121,8 +121,9 @@ test('on a phone the date field stays in its column and the category list opens 
     const r = (sel: string) => document.querySelector(sel)!.getBoundingClientRect()
     return { date: r('#tx-date'), cat: r('[aria-label=Category]'), pop: r('[data-slot=select-content]'), vh: innerHeight }
   })
-  // Date and Category share a 2-col grid — the date input must not spill into Category
-  expect(box.date.right).toBeLessThanOrEqual(box.cat.left)
+  // on a phone Date owns its row — iOS paints the date control wider than any box it is
+  // given, so sharing a row with Category always ended in an overlap
+  expect(box.date.bottom).toBeLessThanOrEqual(box.cat.top)
   // the list drops below the trigger instead of sliding up over the sheet (base-ui's
   // align-item-with-trigger default), and stays inside the screen
   expect(box.pop.top).toBeGreaterThanOrEqual(box.cat.top)

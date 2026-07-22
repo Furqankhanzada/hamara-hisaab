@@ -170,10 +170,10 @@ export function TxForm({ existing, onDone }: { existing?: Tx; onDone?: () => voi
           )}
         </Field>
 
-        {/* iOS date inputs have an intrinsic content width (~200px for "22-Jul-2026" + the picker)
-            that no width/min-width can shrink — a 1fr column just gets overflowed into Category.
-            An auto track hands the date the width it demands and gives Category the rest. */}
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3">
+        {/* iOS Safari paints a date control at its own intrinsic width whatever box it is given —
+            narrowing the column just moves the spill, so on phones Date takes a row of its own
+            (verified on an iPhone 11: half-width columns overlapped Category every way we sized them) */}
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field className="min-w-0">
             <FieldLabel htmlFor="tx-date">Date</FieldLabel>
             <Input id="tx-date" type="date" required className="min-w-0" value={date} onChange={(e) => setDate(e.target.value)} />
