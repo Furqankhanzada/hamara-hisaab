@@ -84,6 +84,7 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
       sets.push('amount = ?', 'original_amount = ?', 'original_currency = ?', 'fx_rate = ?')
       binds.push(mo.amount, mo.originalAmount, mo.originalCurrency, mo.fxRate)
     }
+    if (b.category_id !== undefined && b.category === undefined) b.category = await categoryName(b.category_id)
     for (const [key, col] of [['type', 'type'], ['category_id', 'category_id'], ['category', 'category'], ['note', 'note'], ['occurred_on', 'occurred_on']] as const)
       if (b[key] !== undefined) { sets.push(`${col} = ?`); binds.push(b[key]) }
     if (b.tags !== undefined) { sets.push('tags = ?'); binds.push(JSON.stringify(b.tags)) }

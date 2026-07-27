@@ -43,6 +43,15 @@ test('offline: app boots from local data, entries queue and sync on reconnect', 
   await expect(page.getByText('Uncategorized')).toHaveCount(0)
   await expect(page.getByText('2 items')).toBeVisible() // both entries merged under the one Groceries card
 
+  // editing the category while offline must resolve the new name too, not just at create time
+  await page.getByText('offline entry').click()
+  await page.getByRole('combobox', { name: 'Category' }).click()
+  await page.getByRole('option', { name: 'Food & Dining' }).click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Entry updated')).toBeVisible()
+  await expect(page.getByText('Uncategorized')).toHaveCount(0)
+  await expect(page.getByText('Food & Dining')).toBeVisible()
+
   await context.setOffline(false)
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
   await expect(page.getByText(/saved locally|Syncing/)).toHaveCount(0, { timeout: 10_000 })
