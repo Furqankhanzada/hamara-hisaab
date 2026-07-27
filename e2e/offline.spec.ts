@@ -39,6 +39,9 @@ test('offline: app boots from local data, entries queue and sync on reconnect', 
   await expect(page.getByText('Offline — 2 saved locally')).toBeVisible()
   await page.getByRole('link', { name: 'Ledger' }).click()
   await expect(page.getByText('offline entry')).toBeVisible() // visible from local SQLite immediately
+  // category name is resolved from the local mirror, not left blank until the next sync
+  await expect(page.getByText('Uncategorized')).toHaveCount(0)
+  await expect(page.getByText('2 items')).toBeVisible() // both entries merged under the one Groceries card
 
   await context.setOffline(false)
   await page.evaluate(() => window.dispatchEvent(new Event('online')))

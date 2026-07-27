@@ -36,6 +36,13 @@ async function fxRateFor(currency?: string, explicit?: number) {
   return rates?.find((r) => r.quote === currency)?.rate ?? null
 }
 
+/** Category name for a local transaction row; the client only ever sends category_id. */
+async function categoryName(categoryId?: string | null) {
+  if (!categoryId) return null
+  const [row] = await query<{ name: string }>('select name from categories where id = ?', [categoryId])
+  return row?.name ?? null
+}
+
 /** Money fields for a local transaction row, mirroring the server's resolveMoney (fx estimated from cached rates). */
 async function money(b: Row) {
   const rate = await fxRateFor(b.currency, b.fx_rate ? Number(b.fx_rate) : undefined)
@@ -58,12 +65,13 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
 
   if (p === '/transactions' && method === 'POST') {
     const mo = await money(b)
+    const category = b.category ?? (await categoryName(b.category_id))
     return [{
       sql: `insert or replace into transactions(id, type, amount, original_amount, original_currency, fx_rate,
               category_id, category, tags, note, occurred_on, source, user_id, paid_by, ord)
             values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       bind: [b.id, b.type, mo.amount, mo.originalAmount, mo.originalCurrency, mo.fxRate,
-        b.category_id ?? null, b.category ?? null, JSON.stringify(b.tags ?? []), b.note ?? null, b.occurred_on ?? todayApp(),
+        b.category_id ?? null, category, JSON.stringify(b.tags ?? []), b.note ?? null, b.occurred_on ?? todayApp(),
         'api', me?.id ?? null, me?.name ?? null, -Date.now()],
     }]
   }
