@@ -39,6 +39,32 @@ test('offline: app boots from local data, entries queue and sync on reconnect', 
   await expect(page.getByText('Offline — 2 saved locally')).toBeVisible()
   await page.getByRole('link', { name: 'Ledger' }).click()
   await expect(page.getByText('offline entry')).toBeVisible() // visible from local SQLite immediately
+  // category name is resolved from the local mirror, not left blank until the next sync
+  await expect(page.getByText('Uncategorized')).toHaveCount(0)
+  await expect(page.getByText('2 items')).toBeVisible() // both entries merged under the one Groceries card
+
+  // editing the category while offline must resolve the new name too, not just at create time
+  await page.getByText('offline entry').click()
+  await page.getByRole('combobox', { name: 'Category' }).click()
+  await page.getByRole('option', { name: 'Food & Dining' }).click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Entry updated')).toBeVisible()
+  await expect(page.getByText('Uncategorized')).toHaveCount(0)
+  await expect(page.getByText('Food & Dining')).toBeVisible()
+
+  // same category-resolution path for income entries, not just expenses
+  await page.getByRole('button', { name: 'Add entry' }).click()
+  await page.getByRole('button', { name: 'Income' }).click()
+  await type(page.getByLabel('Amount'), '75000')
+  await page.getByRole('combobox', { name: 'Category' }).click()
+  await page.getByRole('option', { name: 'Salary' }).click()
+  await type(page.getByLabel('Note'), 'offline income')
+  await page.getByRole('button', { name: 'Add income' }).click()
+  await expect(page.getByText('Income added')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('Uncategorized')).toHaveCount(0)
+  // #root only — the closed drawer's category trigger/listbox still match 'Salary' outside it
+  await expect(page.locator('#root').getByText('Salary')).toBeVisible()
 
   await context.setOffline(false)
   await page.evaluate(() => window.dispatchEvent(new Event('online')))

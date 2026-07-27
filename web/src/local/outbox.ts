@@ -36,6 +36,13 @@ async function fxRateFor(currency?: string, explicit?: number) {
   return rates?.find((r) => r.quote === currency)?.rate ?? null
 }
 
+/** Category name for a local transaction row; the client only ever sends category_id. */
+async function categoryName(categoryId?: string | null) {
+  if (!categoryId) return null
+  const [row] = await query<{ name: string }>('select name from categories where id = ?', [categoryId])
+  return row?.name ?? null
+}
+
 /** Money fields for a local transaction row, mirroring the server's resolveMoney (fx estimated from cached rates). */
 async function money(b: Row) {
   const rate = await fxRateFor(b.currency, b.fx_rate ? Number(b.fx_rate) : undefined)
@@ -58,12 +65,13 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
 
   if (p === '/transactions' && method === 'POST') {
     const mo = await money(b)
+    const category = b.category ?? (await categoryName(b.category_id))
     return [{
       sql: `insert or replace into transactions(id, type, amount, original_amount, original_currency, fx_rate,
               category_id, category, tags, note, occurred_on, source, user_id, paid_by, ord)
             values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       bind: [b.id, b.type, mo.amount, mo.originalAmount, mo.originalCurrency, mo.fxRate,
-        b.category_id ?? null, b.category ?? null, JSON.stringify(b.tags ?? []), b.note ?? null, b.occurred_on ?? todayApp(),
+        b.category_id ?? null, category, JSON.stringify(b.tags ?? []), b.note ?? null, b.occurred_on ?? todayApp(),
         'api', me?.id ?? null, me?.name ?? null, -Date.now()],
     }]
   }
@@ -76,8 +84,12 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
       sets.push('amount = ?', 'original_amount = ?', 'original_currency = ?', 'fx_rate = ?')
       binds.push(mo.amount, mo.originalAmount, mo.originalCurrency, mo.fxRate)
     }
-    for (const [key, col] of [['type', 'type'], ['category_id', 'category_id'], ['category', 'category'], ['note', 'note'], ['occurred_on', 'occurred_on']] as const)
+    for (const [key, col] of [['type', 'type'], ['category_id', 'category_id'], ['note', 'note'], ['occurred_on', 'occurred_on']] as const)
       if (b[key] !== undefined) { sets.push(`${col} = ?`); binds.push(b[key]) }
+    // resolved into a local var, not written back onto b: b is also what gets JSON-stringified into
+    // the queued outbox row and returned to the caller, and the server resolves category_id itself
+    if (b.category !== undefined) { sets.push('category = ?'); binds.push(b.category) }
+    else if (b.category_id !== undefined) { sets.push('category = ?'); binds.push(await categoryName(b.category_id)) }
     if (b.tags !== undefined) { sets.push('tags = ?'); binds.push(JSON.stringify(b.tags)) }
     return sets.length ? [{ sql: `update transactions set ${sets.join(', ')} where id = ?`, bind: [...binds, m[1]] }] : []
   }
