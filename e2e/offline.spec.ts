@@ -52,6 +52,20 @@ test('offline: app boots from local data, entries queue and sync on reconnect', 
   await expect(page.getByText('Uncategorized')).toHaveCount(0)
   await expect(page.getByText('Food & Dining')).toBeVisible()
 
+  // same category-resolution path for income entries, not just expenses
+  await page.getByRole('button', { name: 'Add entry' }).click()
+  await page.getByRole('button', { name: 'Income' }).click()
+  await type(page.getByLabel('Amount'), '75000')
+  await page.getByRole('combobox', { name: 'Category' }).click()
+  await page.getByRole('option', { name: 'Salary' }).click()
+  await type(page.getByLabel('Note'), 'offline income')
+  await page.getByRole('button', { name: 'Add income' }).click()
+  await expect(page.getByText('Income added')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('Uncategorized')).toHaveCount(0)
+  // #root only — the closed drawer's category trigger/listbox still match 'Salary' outside it
+  await expect(page.locator('#root').getByText('Salary')).toBeVisible()
+
   await context.setOffline(false)
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
   await expect(page.getByText(/saved locally|Syncing/)).toHaveCount(0, { timeout: 10_000 })
