@@ -84,9 +84,12 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
       sets.push('amount = ?', 'original_amount = ?', 'original_currency = ?', 'fx_rate = ?')
       binds.push(mo.amount, mo.originalAmount, mo.originalCurrency, mo.fxRate)
     }
-    if (b.category_id !== undefined && b.category === undefined) b.category = await categoryName(b.category_id)
-    for (const [key, col] of [['type', 'type'], ['category_id', 'category_id'], ['category', 'category'], ['note', 'note'], ['occurred_on', 'occurred_on']] as const)
+    for (const [key, col] of [['type', 'type'], ['category_id', 'category_id'], ['note', 'note'], ['occurred_on', 'occurred_on']] as const)
       if (b[key] !== undefined) { sets.push(`${col} = ?`); binds.push(b[key]) }
+    // resolved into a local var, not written back onto b: b is also what gets JSON-stringified into
+    // the queued outbox row and returned to the caller, and the server resolves category_id itself
+    if (b.category !== undefined) { sets.push('category = ?'); binds.push(b.category) }
+    else if (b.category_id !== undefined) { sets.push('category = ?'); binds.push(await categoryName(b.category_id)) }
     if (b.tags !== undefined) { sets.push('tags = ?'); binds.push(JSON.stringify(b.tags)) }
     return sets.length ? [{ sql: `update transactions set ${sets.join(', ')} where id = ?`, bind: [...binds, m[1]] }] : []
   }
