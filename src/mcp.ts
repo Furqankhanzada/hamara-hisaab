@@ -37,7 +37,17 @@ function defaultAnnotations(name: string) {
 }
 
 function buildServer(ctx: Ctx) {
-  const server = new McpServer({ name: 'hamara-hisaab', version: '1.0.0' })
+  const server = new McpServer(
+    { name: 'hamara-hisaab', version: '1.0.0' },
+    {
+      instructions:
+        "Household finance tracker (Hamara Hisaab): shared expense/income ledger, budgets, investment portfolio, " +
+        'loans (qarz), recurring bills, and zakat. Use add_transaction to log spending/income as it happens, ' +
+        'get_daily_brief for a morning summary, get_report/get_monthly_report to answer spending questions, and ' +
+        'get_budget_status before telling the user whether they can afford something. Amounts are in the household ' +
+        'base currency unless a foreign currency is given. Call list_categories/list_tags before inventing new ones.',
+    },
+  )
   const tool = (
     name: string,
     description: string,
