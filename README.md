@@ -42,6 +42,26 @@ claude mcp add finance --transport http https://your-host/mcp --header "x-api-ke
 
 `Authorization: Bearer YOUR_KEY` also works for clients that only support bearer auth.
 
+**Hermes**: since Hermes' `mcp.json` only takes `command`/`args` (no HTTP transport, no headers), point it
+at `mcp-remote` to bridge to the `/mcp` endpoint:
+
+```json
+{
+  "mcpServers": {
+    "finance": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://your-host/mcp",
+        "--header",
+        "x-api-key: YOUR_KEY"
+      ]
+    }
+  }
+}
+```
+
 **Daily WhatsApp summary**: schedule your agent (Hermes cron, Claude scheduled task, n8n…) to call
 `get_daily_brief` (or `GET /api/v1/reports/brief`) every morning — it returns yesterday's spending,
 month-to-date, budget-pace warnings, bills due within 7 days, open qarz and a zakat reminder,
