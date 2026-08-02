@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { House, NotebookText, ChartNoAxesCombined, Ellipsis, Plus, type LucideIcon } from 'lucide-react'
@@ -48,6 +48,9 @@ function Tab({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: s
 /** Local-first sync: pull the snapshot on boot/focus/reconnect; requery pages when local data changes. */
 function useSyncEngine() {
   const qc = useQueryClient()
+  // null while signed in; otherwise how many writes are stranded in the outbox waiting on a session
+  const [signedOut, setSignedOut] = useState<number | null>(null)
+  const resync = useRef(() => {})
   useEffect(() => {
     const unsubscribe = onChange(() => qc.invalidateQueries())
     const doSync = async () => {
@@ -55,14 +58,19 @@ function useSyncEngine() {
       const result = await syncNow()
       if (result === 'unauthorized') {
         disconnectLive()
-        if ((await pendingCount()) === 0) {
-          await clearLocal() // session gone (or another account) — drop the mirror, Login takes over
+        const stranded = await pendingCount()
+        setSignedOut(stranded) // Login takes over — /me is served from the mirror and would never 401
+        if (stranded === 0) {
+          await clearLocal() // session gone (or another account) — nothing to lose, drop the mirror
           qc.invalidateQueries()
         }
       } else {
-        connectLive(() => void doSync()) // push: server nudges on any household mutation
+        setSignedOut(null)
+        // 'forbidden' = signed in but no household yet; HouseholdSetup is next, there's nothing to stream
+        if (result !== 'forbidden') connectLive(() => void doSync()) // push: server nudges on any household mutation
       }
     }
+    resync.current = () => void doSync()
     void doSync()
     const onWake = () => void doSync()
     // visibilitychange is the reliable resume signal on mobile PWAs (focus often never fires there)
@@ -84,6 +92,7 @@ function useSyncEngine() {
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [qc])
+  return { signedOut, resync: () => resync.current() }
 }
 
 /** Shows only when something needs attention: offline, or writes waiting to sync. */
@@ -116,11 +125,12 @@ function SyncBadge() {
 }
 
 export default function App() {
-  useSyncEngine()
+  const { signedOut, resync } = useSyncEngine()
   const me = useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/me'), retry: false })
   const [addOpen, setAddOpen] = useState(false)
 
-  if (me.isError) return <Login />
+  // signing back in must resync: the queue only drains once there's a session again
+  if (me.isError || signedOut !== null) return <Login stranded={signedOut ?? 0} onSignedIn={resync} />
   if (!me.data) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col gap-4 p-6">

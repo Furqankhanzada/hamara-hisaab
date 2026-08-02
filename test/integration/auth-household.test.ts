@@ -19,6 +19,15 @@ describe('auth + household', () => {
     expect(expense).toEqual(expect.arrayContaining(['Family Support', 'Gifts', 'Groceries']))
   })
 
+  it('issues a session cookie that outlives the week — logout is the only way out', async () => {
+    const res = await req('/api/auth/sign-up/email', {
+      json: { email: `t-${Date.now()}@test.local`, password: 'password-123', name: 'Long Session' },
+    })
+    expect(res.status).toBe(200) // over 400 days the cookie is rejected outright and sign-up 500s
+    const maxAge = Number(/max-age=(\d+)/i.exec(res.headers.get('set-cookie') ?? '')?.[1] ?? 0)
+    expect(maxAge).toBeGreaterThan(60 * 60 * 24 * 365) // the 7-day default silently logged a phone out
+  })
+
   it('rejects bad API keys and missing auth', async () => {
     expect((await req('/api/v1/me', { key: 'not-a-key' })).status).toBe(401)
     expect((await req('/api/v1/transactions')).status).toBe(401)

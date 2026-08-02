@@ -85,7 +85,7 @@ async function ingest(snap: Snapshot) {
 
 const pending = async () => (await query<{ c: number }>('select count(*) as c from outbox'))[0].c > 0
 
-let refreshing: Promise<'ok' | 'unchanged' | 'unauthorized' | 'offline' | 'pending'> | null = null
+let refreshing: Promise<'ok' | 'unchanged' | 'unauthorized' | 'forbidden' | 'offline' | 'pending'> | null = null
 
 /**
  * Pull the latest snapshot if it changed. Coalesces concurrent calls.
@@ -102,7 +102,10 @@ export async function refresh(fresh = false) {
       const etag = await getMeta<string>('etag')
       const res = await fetch('/api/v1/snapshot', { headers: etag ? { 'If-None-Match': etag } : {} })
       if (res.status === 304) return 'unchanged' as const
-      if (res.status === 401 || res.status === 403) return 'unauthorized' as const
+      if (res.status === 401) return 'unauthorized' as const
+      // 403 = signed in, no household yet (requireHousehold). Not a sign-out — the app shows
+      // HouseholdSetup, and putting the login screen up here would strand new users on it.
+      if (res.status === 403) return 'forbidden' as const
       if (!res.ok) throw new Error(`snapshot ${res.status}`)
       const snap = await res.json()
       // …and re-check after the round-trip: a write made *during* the fetch isn't in this response,
