@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { House, NotebookText, ChartNoAxesCombined, Ellipsis, Plus, type LucideIcon } from 'lucide-react'
-import { api } from './api'
+import { api, fmt } from './api'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { Button } from '@/components/ui/button'
+import { Confirm } from '@/components/shared'
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { TxForm } from './TxForm'
 import { HouseholdSetup, Login } from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -17,7 +19,8 @@ import Portfolio from './pages/Portfolio'
 import More from './pages/More'
 import Activity from './pages/Activity'
 import { clearLocal, onChange } from './local/store'
-import { pendingCount, syncNow } from './local/outbox'
+import { discardEntry, pendingCount, pendingEntries, syncNow, syncState, type PendingEntry, type SyncState } from './local/outbox'
+import { describeEntry } from './local/describe'
 import { connectLive, disconnectLive } from './local/live'
 import { Badge } from '@/components/ui/badge'
 
@@ -95,14 +98,66 @@ function useSyncEngine() {
   return { signedOut, resync: () => resync.current() }
 }
 
-/** Shows only when something needs attention: offline, or writes waiting to sync. */
+/** The queue, in plain language: what's waiting, why it's stuck, and a way out of a bad entry. */
+function PendingSheet({ open, onOpenChange, entries }: {
+  open: boolean; onOpenChange: (v: boolean) => void; entries: PendingEntry[]
+}) {
+  const reachable = navigator.onLine && syncState() !== 'offline'
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Waiting to sync ({entries.length})</DrawerTitle>
+          <DrawerDescription>
+            {reachable
+              ? 'Saved on this device and being sent to the server now.'
+              : "Saved on this device. They'll be sent automatically once the server is reachable."}
+          </DrawerDescription>
+        </DrawerHeader>
+        <div className="max-h-[50vh] overflow-y-auto px-4 pb-2">
+          {entries.map((e, i) => {
+            const { label, amount } = describeEntry(e.method, e.path, JSON.parse(e.body))
+            return (
+              <div key={e.seq} className="flex items-center gap-3 border-b py-3 last:border-0">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm">{label}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(e.created_at).toLocaleString()}
+                    {i === 0 && reachable && entries.length > 1 && ' · sending first'}
+                  </div>
+                </div>
+                {amount != null && <span className="amount text-sm">{fmt(amount)}</span>}
+                <Confirm
+                  title="Discard this change?"
+                  description="It was never sent to the server, so it will be gone for good."
+                  actionLabel="Discard"
+                  onConfirm={() => void discardEntry(e.seq)}
+                  trigger={<Button variant="ghost" size="sm" aria-label={`Discard ${label}`}>Discard</Button>}
+                />
+              </div>
+            )
+          })}
+        </div>
+        <DrawerFooter>
+          <Button variant="outline" onClick={() => void syncNow()}>Try again now</Button>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
+/** Shows only when something needs attention: not connected, or writes waiting to sync. */
 function SyncBadge() {
-  const [pending, setPending] = useState(0)
-  const [online, setOnline] = useState(navigator.onLine)
+  const [entries, setEntries] = useState<PendingEntry[]>([])
+  // navigator.onLine only knows about the *device*; a reachable network with a dead server looked
+  // identical to a healthy sync, which is how "Syncing 2…" stayed up for three days.
+  const [state, setState] = useState<{ online: boolean; sync: SyncState }>(
+    { online: navigator.onLine, sync: syncState() })
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     const update = () => {
-      setOnline(navigator.onLine)
-      void pendingCount().then(setPending)
+      setState({ online: navigator.onLine, sync: syncState() })
+      void pendingEntries().then(setEntries)
     }
     update()
     const unsubscribe = onChange(update)
@@ -114,13 +169,26 @@ function SyncBadge() {
       window.removeEventListener('offline', update)
     }
   }, [])
-  if (online && pending === 0) return null
+
+  const pending = entries.length
+  const unreachable = !state.online || state.sync === 'offline'
+  if (!unreachable && pending === 0) return null
+  const label = !state.online
+    ? pending > 0 ? `Offline — ${pending} saved locally` : 'Offline'
+    : state.sync === 'offline'
+      ? pending > 0 ? `Can't reach server — ${pending} saved locally` : "Can't reach server"
+      : `Syncing ${pending}…`
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-16 z-20 mb-[env(safe-area-inset-bottom)] flex justify-center">
-      <Badge variant="secondary" className="shadow-sm">
-        {online ? `Syncing ${pending}…` : pending > 0 ? `Offline — ${pending} saved locally` : 'Offline'}
-      </Badge>
-    </div>
+    <>
+      <div className="fixed inset-x-0 bottom-16 z-20 mb-[env(safe-area-inset-bottom)] flex justify-center">
+        <Badge variant="secondary" className="shadow-sm" render={
+          <button type="button" disabled={pending === 0} onClick={() => setOpen(true)} />
+        }>
+          {label}
+        </Badge>
+      </div>
+      <PendingSheet open={open} onOpenChange={setOpen} entries={entries} />
+    </>
   )
 }
 

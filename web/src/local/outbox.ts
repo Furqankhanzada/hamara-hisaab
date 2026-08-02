@@ -22,6 +22,19 @@ export async function pendingCount() {
   return c
 }
 
+export type PendingEntry = { seq: number; method: string; path: string; body: string; created_at: string }
+/** What's waiting to sync, oldest first — the head entry is the one holding up the queue. */
+export const pendingEntries = () =>
+  query<PendingEntry>('select seq, method, path, body, created_at from outbox order by seq')
+
+/** Drop a queued write. The next refresh rebuilds the mirror from the server, so the optimistic
+ *  row it created disappears with it — no half-applied state left behind. */
+export async function discardEntry(seq: number) {
+  await batch([{ sql: 'delete from outbox where seq = ?', bind: [seq] }])
+  bump()
+  await syncNow()
+}
+
 async function patchDoc(collection: string, id: string, patch: Row): Promise<Stmt[]> {
   const rows = await query<{ data: string }>('select data from docs where collection = ? and id = ?', [collection, id])
   if (!rows[0]) return []
@@ -241,16 +254,21 @@ export async function mutate(method: string, path: string, body?: unknown) {
   })
   await batch(stmts)
   bump()
-  void syncNow()
+  // answer "did that go through?" from what actually happened, not from navigator.onLine — which is
+  // true when the server is down. One id, so a run of saves replaces the toast instead of stacking.
+  void syncNow().then((state) => {
+    if (state === 'offline') toast('Saved on this device — it will sync when the server is back', { id: 'offline-save' })
+  })
   return b
 }
 
-let flushing: Promise<{ sent: number; unauthorized: boolean }> | null = null
+let flushing: Promise<{ sent: number; unauthorized: boolean; unreachable: boolean }> | null = null
 
 function flushOutbox() {
   flushing ??= (async () => {
     let sent = 0
     let unauthorized = false
+    let unreachable = false
     try {
       for (;;) {
         const [row] = await query<{ seq: number; method: string; path: string; body: string }>(
@@ -264,11 +282,12 @@ function flushOutbox() {
             body: row.method === 'DELETE' ? undefined : row.body,
           })
         } catch {
+          unreachable = true
           break // offline — keep the queue, retry on reconnect
         }
         if (res.status === 401) { unauthorized = true; break } // signed out — never drop entries over auth
         if (res.status === 403) break // forbidden for now (no household yet) — keep it, retry later
-        if (!res.ok && res.status >= 500) break // server trouble — retry later
+        if (!res.ok && res.status >= 500) { unreachable = true; break } // server trouble — retry later
         if (!res.ok) toast.error(`A change could not sync (${res.status}) and was undone`)
         await batch([{ sql: 'delete from outbox where seq = ?', bind: [row.seq] }])
         sent++
@@ -276,21 +295,28 @@ function flushOutbox() {
     } finally {
       flushing = null
     }
-    return { sent, unauthorized }
+    return { sent, unauthorized, unreachable }
   })()
   return flushing
 }
 
+export type SyncState = Awaited<ReturnType<typeof refresh>> | 'unauthorized'
+
+let lastSync: SyncState = 'pending' // nothing has been attempted yet
+/** How the last sync attempt ended — the badge says "offline" vs "can't reach server" from this. */
+export const syncState = () => lastSync
+
 /** Drain the outbox, then pull the latest snapshot (refresh skips ingest while entries remain). */
 export async function syncNow() {
-  const { sent, unauthorized } = await flushOutbox()
+  const { sent, unauthorized, unreachable } = await flushOutbox()
   // Report the auth failure instead of falling through to refresh(): with entries still queued it
   // would answer 'pending', the app would never learn the session is gone, and the three rules
   // would deadlock — can't send while signed out, can't pull while entries wait, can't sign in
   // because nothing ever says to.
-  if (unauthorized) return 'unauthorized' as const
+  // 'unreachable' can't be left to refresh() either: with entries still queued it answers 'pending',
+  // which says nothing about whether the server is there — the badge would claim to be syncing.
   // anything we just sent needs a pull issued after it, not one already in flight
-  const result = await refresh(sent > 0)
+  lastSync = unauthorized ? 'unauthorized' : unreachable ? 'offline' : await refresh(sent > 0)
   bump() // pending badge updates even when nothing else changed
-  return result
+  return lastSync
 }
