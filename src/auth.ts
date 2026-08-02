@@ -19,6 +19,12 @@ export const auth = betterAuth({
     // once the household is registered on a public URL, set DISABLE_SIGNUPS=true
     disableSignUp: process.env.DISABLE_SIGNUPS === 'true',
   },
+  // Signing out is the only way out. The default 7 days silently logged a phone out mid-week, and an
+  // expired session on a local-first client is worse than a lost tab: queued writes can't drain.
+  // 400 days is the ceiling — expiresIn also sets the cookie's Max-Age, and both browsers and
+  // better-call reject anything longer. Default updateAge (1 day) slides it on use, so a phone that
+  // opens the app even once a year never gets logged out.
+  session: { expiresIn: 60 * 60 * 24 * 400 },
   user: {
     additionalFields: {
       householdId: { type: 'string', required: false, input: false },

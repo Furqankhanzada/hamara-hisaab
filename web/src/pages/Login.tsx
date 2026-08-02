@@ -21,7 +21,8 @@ function Brand() {
   )
 }
 
-export function Login() {
+/** `stranded` = writes sitting in the outbox that this session can't send; signing in drains them. */
+export function Login({ stranded = 0, onSignedIn }: { stranded?: number; onSignedIn?: () => void } = {}) {
   const qc = useQueryClient()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [form, setForm] = useState({ name: '', email: '', password: '' })
@@ -36,7 +37,10 @@ export function Login() {
         : await authClient.signUp.email({ name: form.name, email: form.email, password: form.password })
     setBusy(false)
     if (res.error) toast.error(res.error.message ?? 'Could not sign in')
-    else qc.invalidateQueries({ queryKey: ['me'] })
+    else {
+      qc.invalidateQueries({ queryKey: ['me'] })
+      onSignedIn?.()
+    }
   }
 
   return (
@@ -46,7 +50,9 @@ export function Login() {
         <CardHeader>
           <CardTitle>{mode === 'login' ? 'Sign in' : 'Create your account'}</CardTitle>
           <CardDescription>
-            {mode === 'login' ? 'Pick up where your ledger left off.' : 'Your household ledger starts here.'}
+            {stranded > 0
+              ? `${stranded} ${stranded === 1 ? 'change is' : 'changes are'} saved on this device — signing in sends ${stranded === 1 ? 'it' : 'them'} to the server.`
+              : mode === 'login' ? 'Pick up where your ledger left off.' : 'Your household ledger starts here.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
