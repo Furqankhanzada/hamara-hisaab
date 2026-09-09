@@ -129,18 +129,20 @@ function buildServer(ctx: Ctx) {
   tool('add_loan', 'Record money lent to or borrowed from someone (qarz).', loans.loanInput.shape, (a) => loans.addLoan(ctx, loans.loanInput.parse(a)))
   tool('list_loans', 'List loans visible to you (your own + household-shared) with outstanding amounts; filter by status open|settled.',
     { status: z.enum(['open', 'settled']).optional() }, (a: { status?: 'open' | 'settled' }) => loans.listLoans(ctx, a.status))
-  tool('record_loan_payment', 'Record a repayment against a loan (auto-settles when fully repaid).',
+  tool('record_loan_payment',
+    "Add a line to a loan's statement: a repayment (auto-settles when fully repaid) or, with kind='advance', " +
+    'more money lent/borrowed on the same loan — always prefer an advance over creating a second loan for the same person.',
     { loan_id: z.string(), ...loans.loanPaymentInput.shape },
     async (a: { loan_id: string }) => orNotFound(await loans.addLoanPayment(ctx, a.loan_id, loans.loanPaymentInput.parse(a))))
-  tool('update_loan', 'Settle a loan (any remainder counts as forgiven), reopen it, update its note, or change its visibility.',
-    {
-      loan_id: z.string(),
-      status: z.enum(['open', 'settled']).optional(),
-      note: z.string().optional(),
-      visibility: z.enum(['shared', 'private']).optional(),
-    },
-    async (a: { loan_id: string; status?: 'open' | 'settled'; note?: string; visibility?: 'shared' | 'private' }) =>
-      orNotFound(await loans.updateLoan(ctx, a.loan_id, { status: a.status, note: a.note, visibility: a.visibility })))
+  tool('update_loan', 'Correct a loan (counterparty, opening amount, dates, note), settle it (any remainder counts as forgiven), reopen it, or change its visibility.',
+    { loan_id: z.string(), ...loans.loanUpdate.shape },
+    async (a: { loan_id: string }) => orNotFound(await loans.updateLoan(ctx, a.loan_id, loans.loanUpdate.parse(a))))
+  tool('delete_loan', 'Delete a loan and its whole statement — for one recorded by mistake. Settle it instead if the money was really lent.',
+    { loan_id: z.string() },
+    async (a: { loan_id: string }) => (await loans.deleteLoan(ctx, a.loan_id)) ? { deleted: true } : orNotFound(null))
+  tool('delete_loan_payment', 'Remove one line from a loan statement (reopens the loan if it was settled).',
+    { loan_id: z.string(), payment_id: z.string() },
+    async (a: { loan_id: string; payment_id: string }) => orNotFound(await loans.deleteLoanPayment(ctx, a.loan_id, a.payment_id)))
 
   tool('add_recurring', 'Create a recurring monthly bill/income rule (auto-logged on its due day).',
     recurring.recurringInput.shape, (a) => recurring.addRecurring(ctx, recurring.recurringInput.parse(a)))

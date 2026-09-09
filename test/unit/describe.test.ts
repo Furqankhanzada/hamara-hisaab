@@ -17,6 +17,14 @@ describe('queued entry labels', () => {
       .toEqual({ label: 'Loan payment', amount: 1600 })
   })
 
+  it('names loan ledger lines by what they are', () => {
+    expect(describeEntry('POST', '/loans/097e9b10/payments', { amount: 50000, kind: 'advance' }))
+      .toEqual({ label: 'Loan advance', amount: 50000 })
+    expect(describeEntry('DELETE', '/loans/097e9b10/payments/abc', {})).toEqual({ label: 'Deleted loan line' })
+    expect(describeEntry('DELETE', '/loans/097e9b10', {})).toEqual({ label: 'Deleted loan' })
+    expect(describeEntry('PATCH', '/loans/097e9b10', { counterparty: 'Ahmed' })).toEqual({ label: 'Loan update' })
+  })
+
   it('covers the rest of the queueable paths', () => {
     expect(describeEntry('POST', '/tags', { name: 'milk' }).label).toBe('Tag · milk')
     expect(describeEntry('POST', '/accounts', { name: 'Meezan', balance: 900 }))

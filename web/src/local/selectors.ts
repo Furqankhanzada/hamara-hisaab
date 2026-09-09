@@ -72,8 +72,12 @@ const txRows = async (sql: string, bind: unknown[]) =>
 
 // note: loan rows are snake_case (server raw SQL) but payment rows are camelCase (drizzle select)
 function loanTotals(loan: Row, payments: Row[]): Row {
-  const paid = payments.filter((p) => p.loanId === loan.id).reduce((s, p) => s + Number(p.amount), 0)
-  return { ...loan, paid, outstanding: Number(loan.principal) - paid }
+  const mine = payments.filter((p) => p.loanId === loan.id)
+  const sum = (rows: Row[]) => rows.reduce((s, p) => s + Number(p.amount), 0)
+  // a mirror written before advances existed has no `kind` — those rows were all repayments
+  const paid = sum(mine.filter((p) => p.kind !== 'advance'))
+  const advanced = sum(mine.filter((p) => p.kind === 'advance'))
+  return { ...loan, paid, advanced, outstanding: Number(loan.principal) + advanced - paid }
 }
 
 async function overview(params: URLSearchParams) {

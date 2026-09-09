@@ -489,6 +489,7 @@ type Zakat = {
   zakatable_assets: {
     accounts: { name: string; value: number | null; currency?: string; native_balance?: number }[]
     investments: { name: string; value: number | null }[]
+    receivables: { counterparty: string; value: number }[]
   }
   deductible_debts: { counterparty: string; value: number }[]
 }
@@ -536,6 +537,11 @@ function ZakatSection() {
               ))}
               {z.zakatable_assets.investments.map((a) => (
                 <div key={a.name} className="flex justify-between border-t py-1.5"><span>{a.name}</span><Amount value={a.value} className="text-sm" /></div>
+              ))}
+              {z.zakatable_assets.receivables.map((r) => (
+                <div key={r.counterparty} className="flex justify-between border-t py-1.5">
+                  <span>lent to {r.counterparty}</span><Amount value={r.value} className="text-sm" />
+                </div>
               ))}
               {z.deductible_debts.map((d) => (
                 <div key={d.counterparty} className="flex justify-between border-t py-1.5 text-outflow">

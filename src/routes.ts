@@ -168,17 +168,18 @@ api.get('/loans/:id', async (c) => {
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
 api.patch('/loans/:id', async (c) => {
-  const body = z.object({
-    status: z.enum(['open', 'settled']).optional(),
-    note: z.string().optional(),
-    visibility: z.enum(['shared', 'private']).optional(),
-  }).parse(await c.req.json())
-  const row = await loans.updateLoan(hctx(c), c.req.param('id'), body)
+  const row = await loans.updateLoan(hctx(c), c.req.param('id'), loans.loanUpdate.parse(await c.req.json()))
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
+api.delete('/loans/:id', async (c) =>
+  (await loans.deleteLoan(hctx(c), c.req.param('id'))) ? c.json({ deleted: true }) : c.json({ error: 'not found' }, 404))
 api.post('/loans/:id/payments', async (c) => {
   const row = await loans.addLoanPayment(hctx(c), c.req.param('id'), loans.loanPaymentInput.parse(await c.req.json()))
   return row ? c.json(row, 201) : c.json({ error: 'not found' }, 404)
+})
+api.delete('/loans/:id/payments/:pid', async (c) => {
+  const row = await loans.deleteLoanPayment(hctx(c), c.req.param('id'), c.req.param('pid'))
+  return row ? c.json(row) : c.json({ error: 'not found' }, 404)
 })
 
 api.get('/recurring', async (c) => c.json(await recurring.listRecurring(hctx(c))))

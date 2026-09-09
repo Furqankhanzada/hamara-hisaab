@@ -61,6 +61,10 @@ export async function dailyBrief(ctx: Ctx) {
   const openLoans = await listLoans(ctx, 'open')
   const theyOweUs = openLoans.filter((l) => l.direction === 'lent').reduce((s, l) => s + l.outstanding, 0)
   const weOwe = openLoans.filter((l) => l.direction === 'borrowed').reduce((s, l) => s + l.outstanding, 0)
+  const overdue = openLoans
+    .filter((l) => l.due_date && (l.due_date as string) < today)
+    .map((l) => ({ counterparty: l.counterparty as string, direction: l.direction as string, outstanding: l.outstanding, due_on: l.due_date as string }))
+    .sort((a, b) => a.due_on.localeCompare(b.due_on))
 
   const [zs] = await db.select().from(zakatSettings).where(eq(zakatSettings.householdId, ctx.householdId))
   const zakatReminder = zs?.nextDueDate && zs.nextDueDate <= addDays(today, 30) ? zs.nextDueDate : null
@@ -80,6 +84,9 @@ export async function dailyBrief(ctx: Ctx) {
     theyOweUs > 0 || weOwe > 0
       ? `Qarz: ${[theyOweUs > 0 ? `owed to us ${rs(theyOweUs)}` : null, weOwe > 0 ? `we owe ${rs(weOwe)}` : null].filter(Boolean).join(' · ')}`
       : null,
+    overdue.length
+      ? `Overdue qarz: ${overdue.map((l) => `${l.counterparty} ${rs(l.outstanding)} (due ${l.due_on})`).join('; ')}`
+      : null,
     zakatReminder ? `Zakat due date approaching: ${zakatReminder}` : null,
   ].filter(Boolean)
 
@@ -89,7 +96,7 @@ export async function dailyBrief(ctx: Ctx) {
     month_so_far: month,
     budgets: { totals: budgets.totals, unbudgeted_spent: budgets.unbudgeted_spent, month_elapsed_pct: budgets.month_elapsed_pct, warnings },
     upcoming_bills: upcoming,
-    loans: { they_owe_us: theyOweUs, we_owe: weOwe },
+    loans: { they_owe_us: theyOweUs, we_owe: weOwe, overdue },
     zakat_reminder: zakatReminder,
     text: lines.join('\n'),
   }

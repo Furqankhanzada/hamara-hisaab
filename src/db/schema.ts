@@ -130,6 +130,7 @@ export const loans = pgTable('loans', {
   direction: text('direction', { enum: ['lent', 'borrowed'] }).notNull(),
   principal: numeric('principal', { precision: 14, scale: 2 }).notNull(),
   startDate: date('start_date').notNull(),
+  dueDate: date('due_date'),
   note: text('note'),
   status: text('status', { enum: ['open', 'settled'] }).notNull().default('open'),
   visibility: text('visibility', { enum: ['shared', 'private'] }).notNull().default('private'),
@@ -140,6 +141,8 @@ export const loanPayments = pgTable('loan_payments', {
   loanId: text('loan_id').notNull().references(() => loans.id, { onDelete: 'cascade' }),
   amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
   paidOn: date('paid_on').notNull(),
+  // 'advance' = more money lent/borrowed on the same loan; existing rows were all repayments
+  kind: text('kind', { enum: ['repayment', 'advance'] }).notNull().default('repayment'),
   note: text('note'),
 })
 
