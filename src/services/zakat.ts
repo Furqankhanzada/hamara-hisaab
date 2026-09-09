@@ -4,6 +4,7 @@ import { db } from '../db/client'
 import { zakatSettings } from '../db/schema'
 import type { Ctx } from '../middleware'
 import { latestRatesMap } from './fx'
+import { listLoans } from './loans'
 
 export const zakatSettingsInput = z.object({
   nisab_amount: z.coerce.number().positive().describe('Current nisab threshold in the household base currency (check the gold/silver rate yearly)'),
@@ -41,12 +42,11 @@ export async function zakatSummary(ctx: Ctx) {
     ) p on true
     where h.household_id = ${ctx.householdId} and h.zakatable = true
       and (h.visibility = 'shared' or h.user_id = ${ctx.userId} or h.user_id is null)`)
-  const debts = await db.execute(sql`
-    select l.counterparty, (l.principal - coalesce(p.paid, 0))::float8 as value
-    from loans l
-    left join (select loan_id, sum(amount) as paid from loan_payments group by loan_id) p on p.loan_id = l.id
-    where l.household_id = ${ctx.householdId} and l.direction = 'borrowed' and l.status = 'open'
-      and (l.visibility = 'shared' or l.user_id = ${ctx.userId})`)
+  // money you lent out is still your wealth; money you owe comes off it
+  const openLoans = await listLoans(ctx, 'open')
+  const asRow = (l: (typeof openLoans)[number]) => ({ counterparty: l.counterparty as string, value: l.outstanding })
+  const receivables = openLoans.filter((l) => l.direction === 'lent').map(asRow)
+  const debts = openLoans.filter((l) => l.direction === 'borrowed').map(asRow)
 
   const fxMap = await latestRatesMap(ctx.baseCurrency)
   for (const r of investments.rows as Record<string, unknown>[]) {
@@ -58,16 +58,17 @@ export async function zakatSummary(ctx: Ctx) {
 
   const assetTotal =
     accounts.rows.reduce((s, r) => s + Number(r.value ?? 0), 0) +
-    investments.rows.reduce((s, r) => s + Number(r.value ?? 0), 0)
-  const debtTotal = debts.rows.reduce((s, r) => s + Number(r.value ?? 0), 0)
+    investments.rows.reduce((s, r) => s + Number(r.value ?? 0), 0) +
+    receivables.reduce((s, r) => s + r.value, 0)
+  const debtTotal = debts.reduce((s, r) => s + r.value, 0)
   const base = assetTotal - debtTotal
 
   const [settings] = await db.select().from(zakatSettings).where(sql`household_id = ${ctx.householdId}`)
   const nisab = settings ? Number(settings.nisabAmount) : null
 
   return {
-    zakatable_assets: { accounts: accounts.rows, investments: investments.rows },
-    deductible_debts: debts.rows,
+    zakatable_assets: { accounts: accounts.rows, investments: investments.rows, receivables },
+    deductible_debts: debts,
     zakatable_base: base,
     nisab_amount: nisab,
     above_nisab: nisab !== null ? base >= nisab : null,

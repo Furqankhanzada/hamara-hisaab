@@ -17,9 +17,12 @@ export function describeEntry(method: string, path: string, body: Row): { label:
   if (/^\/transactions\/[^/]+$/.test(p))
     return method === 'DELETE' ? { label: 'Deleted entry' } : { label: 'Edited entry', amount: num(body.amount) }
 
-  if (/^\/loans\/[^/]+\/payments$/.test(p)) return { label: 'Loan payment', amount: num(body.amount) }
+  if (/^\/loans\/[^/]+\/payments$/.test(p))
+    return { label: body.kind === 'advance' ? 'Loan advance' : 'Loan payment', amount: num(body.amount) }
+  if (/^\/loans\/[^/]+\/payments\/[^/]+$/.test(p)) return { label: 'Deleted loan line' }
   if (p === '/loans') return { label: `Loan · ${body.counterparty ?? 'new'}`, amount: num(body.principal) }
-  if (/^\/loans\/[^/]+$/.test(p)) return { label: 'Loan update' }
+  if (/^\/loans\/[^/]+$/.test(p))
+    return method === 'DELETE' ? { label: 'Deleted loan' } : { label: 'Loan update' }
 
   if (p === '/accounts') return { label: `Account · ${body.name ?? 'new'}`, amount: num(body.balance) }
   if (/^\/accounts\/[^/]+$/.test(p))

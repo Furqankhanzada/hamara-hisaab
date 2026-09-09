@@ -42,6 +42,25 @@ describe('MCP endpoint', () => {
     expect(JSON.parse(fx.body.result.content[0].text).amount).toBe('5600.00')
   })
 
+  it('keeps one loan per person: an advance goes on the same statement', async () => {
+    const u = await makeUser()
+    const add = await mcp(u.key, 'tools/call', {
+      name: 'add_loan', arguments: { counterparty: 'Amanullah', direction: 'lent', principal: 125000 },
+    }, 30)
+    const loanId = JSON.parse(add.body.result.content[0].text).id
+    const after = await mcp(u.key, 'tools/call', {
+      name: 'record_loan_payment',
+      arguments: { loan_id: loanId, amount: 50000, kind: 'advance', note: 'shop rent' },
+    }, 31)
+    const loan = JSON.parse(after.body.result.content[0].text)
+    expect(loan.outstanding).toBe(175000)
+    expect(loan.payments).toHaveLength(1)
+
+    const list = await mcp(u.key, 'tools/list')
+    const names = list.body.result.tools.map((t: { name: string }) => t.name)
+    expect(names).toEqual(expect.arrayContaining(['delete_loan', 'delete_loan_payment']))
+  })
+
   it('advertises tool annotations by convention', async () => {
     const u = await makeUser()
     const list = await mcp(u.key, 'tools/list')

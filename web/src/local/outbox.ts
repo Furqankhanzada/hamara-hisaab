@@ -42,6 +42,26 @@ async function patchDoc(collection: string, id: string, patch: Row): Promise<Stm
   return [{ sql: 'update docs set data = ? where collection = ? and id = ?', bind: [JSON.stringify(merged), collection, id] }]
 }
 
+const loanLines = async (loanId: string) =>
+  (await query<{ data: string }>(`select data from docs where collection = 'loan_payments'`))
+    .map((r) => JSON.parse(r.data) as Row).filter((pmt) => pmt.loanId === loanId)
+
+/** Mirrors the server's status rules after a statement line lands or leaves, so the UI agrees offline.
+ *  `revive` is what reopens a settled loan — new money or a removed line, never a plain repayment
+ *  against one that was closed by forgiveness. */
+async function loanRestatus(loanId: string, revive: boolean, change: (lines: Row[]) => Row[]): Promise<Stmt[]> {
+  const [loanRow] = await query<{ data: string }>(`select data from docs where collection = 'loans' and id = ?`, [loanId])
+  if (!loanRow) return []
+  const loan = JSON.parse(loanRow.data)
+  const lines = change(await loanLines(loanId))
+  const sum = (advance: boolean) =>
+    lines.filter((l) => (l.kind === 'advance') === advance).reduce((s, l) => s + Number(l.amount), 0)
+  const outstanding = Number(loan.principal) + sum(true) - sum(false)
+  if (loan.status === 'open' && outstanding <= 0) return patchDoc('loans', loanId, { status: 'settled' })
+  if (loan.status === 'settled' && revive && outstanding > 0) return patchDoc('loans', loanId, { status: 'open' })
+  return []
+}
+
 async function fxRateFor(currency?: string, explicit?: number) {
   if (!currency || currency === appBase()) return null
   if (explicit) return explicit
@@ -119,28 +139,32 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
       sql: 'insert or replace into docs(collection, id, data) values(?,?,?)',
       bind: ['loans', b.id, JSON.stringify({
         id: b.id, user_id: me?.id, counterparty: b.counterparty, direction: b.direction,
-        principal: Number(b.principal), start_date: b.start_date ?? todayApp(), status: 'open',
-        visibility: b.visibility ?? 'private', note: b.note ?? null,
+        principal: Number(b.principal), start_date: b.start_date ?? todayApp(), due_date: b.due_date ?? null,
+        status: 'open', visibility: b.visibility ?? 'private', note: b.note ?? null,
       })],
     }]
   if ((m = p.match(/^\/loans\/([^/]+)$/)) && method === 'PATCH') return patchDoc('loans', m[1], b)
-  if ((m = p.match(/^\/loans\/([^/]+)\/payments$/))) {
+  if ((m = p.match(/^\/loans\/([^/]+)$/)) && method === 'DELETE') {
+    const ids = (await loanLines(m[1])).map((pmt) => pmt.id)
+    return [
+      { sql: `delete from docs where collection = 'loans' and id = ?`, bind: [m[1]] },
+      ...ids.map((id) => ({ sql: `delete from docs where collection = 'loan_payments' and id = ?`, bind: [id] })),
+    ]
+  }
+  if ((m = p.match(/^\/loans\/([^/]+)\/payments$/)) && method === 'POST') {
     const loanId = m[1]
-    const stmts: Stmt[] = [{
-      sql: 'insert or replace into docs(collection, id, data) values(?,?,?)',
-      bind: ['loan_payments', b.id, JSON.stringify({ id: b.id, loanId, amount: Number(b.amount), paidOn: b.paid_on ?? todayApp(), note: b.note ?? null })],
-    }]
-    // mirror the server's auto-settle when the loan is fully repaid
-    const [loanRow] = await query<{ data: string }>(`select data from docs where collection = 'loans' and id = ?`, [loanId])
-    if (loanRow) {
-      const loan = JSON.parse(loanRow.data)
-      const payments = (await query<{ data: string }>(`select data from docs where collection = 'loan_payments'`))
-        .map((r) => JSON.parse(r.data)).filter((pmt) => pmt.loanId === loanId)
-      const paid = payments.reduce((s, pmt) => s + Number(pmt.amount), 0) + Number(b.amount)
-      if (paid >= Number(loan.principal) && loan.status === 'open')
-        stmts.push(...(await patchDoc('loans', loanId, { status: 'settled' })))
-    }
-    return stmts
+    const line = { id: b.id, loanId, amount: Number(b.amount), kind: b.kind ?? 'repayment', paidOn: b.paid_on ?? todayApp(), note: b.note ?? null }
+    return [
+      { sql: 'insert or replace into docs(collection, id, data) values(?,?,?)', bind: ['loan_payments', b.id, JSON.stringify(line)] },
+      ...(await loanRestatus(loanId, line.kind === 'advance', (lines) => [...lines, line])),
+    ]
+  }
+  if ((m = p.match(/^\/loans\/([^/]+)\/payments\/([^/]+)$/)) && method === 'DELETE') {
+    const [, loanId, pmtId] = m
+    return [
+      { sql: `delete from docs where collection = 'loan_payments' and id = ?`, bind: [pmtId] },
+      ...(await loanRestatus(loanId, true, (lines) => lines.filter((l) => l.id !== pmtId))),
+    ]
   }
 
   if (p === '/holdings' && method === 'POST') {

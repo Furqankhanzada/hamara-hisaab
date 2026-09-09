@@ -29,8 +29,8 @@ describe('daily brief', () => {
     const farDay = todayDay <= 15 ? Math.min(todayDay + 20, 28) : Math.max(todayDay - 20, 1) // >7 days either direction
     await json('/api/v1/recurring', { key: u.key, json: { type: 'expense', amount: 1, description: 'Far away', day_of_month: farDay } })
 
-    await json('/api/v1/loans', { key: u.key, json: { counterparty: 'A', direction: 'lent', principal: 40000 } })
-    await json('/api/v1/loans', { key: u.key, json: { counterparty: 'B', direction: 'borrowed', principal: 15000 } })
+    await json('/api/v1/loans', { key: u.key, json: { counterparty: 'A', direction: 'lent', principal: 40000, due_date: shift(t, -3) } })
+    await json('/api/v1/loans', { key: u.key, json: { counterparty: 'B', direction: 'borrowed', principal: 15000, due_date: shift(t, 30) } })
     await json('/api/v1/zakat/settings', { method: 'PUT', key: u.key, json: { nisab_amount: 180000, next_due_date: shift(t, 10) } })
 
     const b = await json('/api/v1/reports/brief', { key: u.key })
@@ -55,12 +55,16 @@ describe('daily brief', () => {
     expect(b.upcoming_bills.map((x: { description: string }) => x.description)).toEqual(['Rent brief'])
     expect(b.upcoming_bills[0].due_on).toBe(t)
 
-    expect(b.loans).toEqual({ they_owe_us: 40000, we_owe: 15000 })
+    expect(b.loans.they_owe_us).toBe(40000)
+    expect(b.loans.we_owe).toBe(15000)
+    // A is 3 days past due; B is not due for a month
+    expect(b.loans.overdue).toEqual([{ counterparty: 'A', direction: 'lent', outstanding: 40000, due_on: shift(t, -3) }])
     expect(b.zakat_reminder).toBe(shift(t, 10))
 
     expect(b.text).toContain('Rs 3,000')
     expect(b.text).toContain('Rent brief')
     expect(b.text).toContain('Zakat')
+    expect(b.text).toContain('Overdue qarz: A Rs 40,000')
   })
 
   it('handles an empty household gracefully', async () => {
@@ -68,7 +72,7 @@ describe('daily brief', () => {
     const b = await json('/api/v1/reports/brief', { key: u.key })
     expect(b.yesterday.total_spent).toBe(0)
     expect(b.upcoming_bills).toEqual([])
-    expect(b.loans).toEqual({ they_owe_us: 0, we_owe: 0 })
+    expect(b.loans).toEqual({ they_owe_us: 0, we_owe: 0, overdue: [] })
     expect(b.zakat_reminder).toBeNull()
     expect(b.text).toContain('no spending recorded')
   })
