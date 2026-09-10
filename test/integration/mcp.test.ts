@@ -61,6 +61,33 @@ describe('MCP endpoint', () => {
     expect(names).toEqual(expect.arrayContaining(['delete_loan', 'delete_loan_payment']))
   })
 
+  it('an agent can find a statement line and remove it', async () => {
+    const u = await makeUser()
+    const add = await mcp(u.key, 'tools/call', {
+      name: 'add_loan', arguments: { counterparty: 'Jhon', direction: 'lent', principal: 5000 },
+    }, 40)
+    const loanId = JSON.parse(add.body.result.content[0].text).id
+    await mcp(u.key, 'tools/call', {
+      name: 'record_loan_payment', arguments: { loan_id: loanId, amount: 1000, note: 'on naya pay' },
+    }, 41)
+
+    // list_loans has no payment ids — get_loan is the only way an agent learns them
+    const got = await mcp(u.key, 'tools/call', { name: 'get_loan', arguments: { loan_id: loanId } }, 42)
+    const statement = JSON.parse(got.body.result.content[0].text)
+    expect(statement.outstanding).toBe(4000)
+    expect(statement.payments).toHaveLength(1)
+    const paymentId = statement.payments[0].id
+    expect(paymentId).toBeTruthy()
+
+    const after = await mcp(u.key, 'tools/call', {
+      name: 'delete_loan_payment', arguments: { loan_id: loanId, payment_id: paymentId },
+    }, 43)
+    expect(JSON.parse(after.body.result.content[0].text).outstanding).toBe(5000)
+
+    const missing = await mcp(u.key, 'tools/call', { name: 'get_loan', arguments: { loan_id: 'nope' } }, 44)
+    expect(missing.body.result.isError).toBe(true)
+  })
+
   it('advertises tool annotations by convention', async () => {
     const u = await makeUser()
     const list = await mcp(u.key, 'tools/list')
