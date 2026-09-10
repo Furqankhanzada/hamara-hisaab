@@ -30,7 +30,20 @@ type LoanDetail = Loan & { payments: Payment[] }
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
-const isOverdue = (l: Loan) => l.status === 'open' && !!l.due_date && l.due_date < todayLocal()
+export const isOverdue = (l: Loan) => l.status === 'open' && !!l.due_date && l.due_date < todayLocal()
+
+/** Open loans and their totals — Home and More both summarise them, this is the one source. */
+export function useOpenLoans() {
+  const { data } = useQuery({ queryKey: ['loans', 'open'], queryFn: () => api<Loan[]>('/loans?status=open') })
+  const open = data ?? []
+  const sum = (direction: Loan['direction']) =>
+    open.filter((l) => l.direction === direction).reduce((s, l) => s + l.outstanding, 0)
+  return { open, owedToUs: sum('lent'), weOwe: sum('borrowed'), overdue: open.filter(isOverdue) }
+}
+
+// every statement row shares this grid so the amounts line up in one column and the remove button
+// gets a gutter of its own — as a flex row it shoved the payment amounts out of line with the total
+const STATEMENT_ROW = 'grid grid-cols-[1fr_auto_1.25rem] items-baseline gap-2'
 
 export default function Loans() {
   const [status, setStatus] = useState<'open' | 'settled'>('open')
@@ -245,36 +258,43 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
       <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-4 pb-6">
         <div>
           <Eyebrow className="mb-1">Statement</Eyebrow>
-          <div className="flex items-baseline justify-between py-1.5 text-sm">
+          <div className={cn(STATEMENT_ROW, 'py-1.5 text-sm')}>
             <span>
               {fmtDate(l.start_date)} · {lent ? 'Lent' : 'Borrowed'}
               {l.note && <span className="text-muted-foreground"> — {l.note}</span>}
             </span>
             <Amount value={l.principal} className="text-sm" />
+            <span />
           </div>
           {l.payments.map((p) => {
             const advance = p.kind === 'advance'
             return (
-              <div key={p.id} className="flex items-baseline justify-between gap-2 border-t py-1.5 text-sm">
+              <div key={p.id} className={cn(STATEMENT_ROW, 'border-t py-1.5 text-sm')}>
                 <span className="text-muted-foreground">
                   {fmtDate(p.paidOn)} · {advance ? moreLabel : lent ? 'Received' : 'Repaid'}
                   {p.note && <> — {p.note}</>}
                 </span>
-                <span className="flex shrink-0 items-baseline gap-1">
-                  <Amount value={p.amount} flow={advance !== lent ? 'in' : 'out'} signed className="text-sm" />
-                  {/* ponytail: no confirm — one statement line is trivially re-entered */}
-                  <button type="button" aria-label={`Remove ${fmtDate(p.paidOn)} line`}
-                    className="text-muted-foreground active:text-destructive" onClick={() => void removeEntry(p.id)}>
-                    <X className="size-3.5" />
-                  </button>
-                </span>
+                <Amount value={p.amount} flow={advance !== lent ? 'in' : 'out'} signed className="text-sm" />
+                <Confirm
+                  title="Remove this line?"
+                  description={`${advance ? moreLabel : lent ? 'Received' : 'Repaid'} ${baseSymbol()} ${Number(p.amount).toLocaleString()} on ${fmtDate(p.paidOn)}. The balance goes back up by that much.`}
+                  actionLabel="Remove"
+                  onConfirm={() => removeEntry(p.id)}
+                  trigger={
+                    <button type="button" aria-label={`Remove ${fmtDate(p.paidOn)} line`}
+                      className="-m-2 self-center justify-self-end p-2 text-muted-foreground hover:text-destructive active:text-destructive">
+                      <X className="size-3.5" />
+                    </button>
+                  }
+                />
               </div>
             )
           })}
           <Separator />
-          <div className="flex items-baseline justify-between py-2 text-sm font-semibold">
+          <div className={cn(STATEMENT_ROW, 'py-2 text-sm font-semibold')}>
             <span>{l.status === 'settled' ? (l.outstanding > 0 ? 'Forgiven' : 'Settled') : 'Outstanding'}</span>
             <Amount value={l.outstanding} className={cn('text-sm', l.status === 'open' && !lent && 'text-outflow')} />
+            <span />
           </div>
           {l.due_date && l.status === 'open' && (
             <div className={cn('text-xs', isOverdue(l) ? 'text-destructive' : 'text-muted-foreground')}>

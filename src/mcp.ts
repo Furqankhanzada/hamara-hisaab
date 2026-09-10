@@ -127,8 +127,11 @@ function buildServer(ctx: Ctx) {
   tool('refresh_prices', 'Fetch latest market data now: global quotes (Yahoo), PSX closing prices, MUFAP fund NAVs, and exchange rates.', {}, () => portfolio.refreshPrices())
 
   tool('add_loan', 'Record money lent to or borrowed from someone (qarz).', loans.loanInput.shape, (a) => loans.addLoan(ctx, loans.loanInput.parse(a)))
-  tool('list_loans', 'List loans visible to you (your own + household-shared) with outstanding amounts; filter by status open|settled.',
+  tool('list_loans', 'List loans visible to you (your own + household-shared) with outstanding amounts; filter by status open|settled. Use get_loan for one loan\'s statement lines.',
     { status: z.enum(['open', 'settled']).optional() }, (a: { status?: 'open' | 'settled' }) => loans.listLoans(ctx, a.status))
+  tool('get_loan', "One loan's full statement: the opening amount plus every repayment and advance, each with its id — the id you need to remove a line.",
+    { loan_id: z.string() },
+    async (a: { loan_id: string }) => orNotFound(await loans.getLoan(ctx, a.loan_id)))
   tool('record_loan_payment',
     "Add a line to a loan's statement: a repayment (auto-settles when fully repaid) or, with kind='advance', " +
     'more money lent/borrowed on the same loan — always prefer an advance over creating a second loan for the same person.',
@@ -140,7 +143,7 @@ function buildServer(ctx: Ctx) {
   tool('delete_loan', 'Delete a loan and its whole statement — for one recorded by mistake. Settle it instead if the money was really lent.',
     { loan_id: z.string() },
     async (a: { loan_id: string }) => (await loans.deleteLoan(ctx, a.loan_id)) ? { deleted: true } : orNotFound(null))
-  tool('delete_loan_payment', 'Remove one line from a loan statement (reopens the loan if it was settled).',
+  tool('delete_loan_payment', 'Remove one line from a loan statement (reopens the loan if it was settled). Get payment_id from get_loan.',
     { loan_id: z.string(), payment_id: z.string() },
     async (a: { loan_id: string; payment_id: string }) => orNotFound(await loans.deleteLoanPayment(ctx, a.loan_id, a.payment_id)))
 

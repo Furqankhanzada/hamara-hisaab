@@ -95,10 +95,26 @@ test('one loan per person: lend more, correct it, drop a wrong line', async ({ p
   await expect(page.getByText('Loan updated')).toBeVisible()
   await expect(page.getByRole('heading', { name: /Amanullah Khan/ })).toBeVisible()
 
-  // the advance was a mistake — remove that line and the balance goes back
+  // the advance was a mistake — removing a line asks first, so a stray tap costs nothing
   await page.getByRole('button', { name: /^Remove/ }).last().click()
+  const remove = page.getByRole('alertdialog')
+  await expect(remove.getByText(/Lent more Rs 50,000/)).toBeVisible()
+  await remove.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByText(/Lent more — shop rent/)).toBeVisible() // still there
+
+  await page.getByRole('button', { name: /^Remove/ }).last().click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click()
   await expect(page.getByText('Line removed')).toBeVisible()
   await expect(page.getByText('Rs 125,000').first()).toBeVisible()
+
+  // Home carries the balances too — the loans page is two taps deep
+  await page.keyboard.press('Escape')
+  await page.getByRole('link', { name: 'Home' }).click()
+  await expect(page.getByText('Qarz')).toBeVisible()
+  await expect(page.getByText('Owed to us')).toBeVisible()
+  await expect(page.getByText('Rs 125,000').first()).toBeVisible()
+  await page.getByRole('link', { name: 'Open' }).click()
+  await expect(page.getByRole('heading', { name: 'Loans / Qarz' })).toBeVisible()
 
   // money lent out counts as zakatable wealth
   await page.keyboard.press('Escape')
