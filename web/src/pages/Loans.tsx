@@ -262,11 +262,18 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
                 </span>
                 <span className="flex shrink-0 items-baseline gap-1">
                   <Amount value={p.amount} flow={advance !== lent ? 'in' : 'out'} signed className="text-sm" />
-                  {/* ponytail: no confirm — one statement line is trivially re-entered */}
-                  <button type="button" aria-label={`Remove ${fmtDate(p.paidOn)} line`}
-                    className="text-muted-foreground active:text-destructive" onClick={() => void removeEntry(p.id)}>
-                    <X className="size-3.5" />
-                  </button>
+                  <Confirm
+                    title="Remove this line?"
+                    description={`${advance ? moreLabel : lent ? 'Received' : 'Repaid'} ${baseSymbol()} ${Number(p.amount).toLocaleString()} on ${fmtDate(p.paidOn)}. The balance goes back up by that much.`}
+                    actionLabel="Remove"
+                    onConfirm={() => removeEntry(p.id)}
+                    trigger={
+                      <button type="button" aria-label={`Remove ${fmtDate(p.paidOn)} line`}
+                        className="-m-2 p-2 text-muted-foreground hover:text-destructive active:text-destructive">
+                        <X className="size-3.5" />
+                      </button>
+                    }
+                  />
                 </span>
               </div>
             )
