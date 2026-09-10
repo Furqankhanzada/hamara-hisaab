@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Amount, Eyebrow, PageHeader } from '@/components/shared'
+import { useOpenLoans } from './Loans'
 
 type Report = {
   month: string; income: number; expense: number; net: number
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [month, setMonth] = useState(todayLocal().slice(0, 7))
   const report = useQuery({ queryKey: ['report', month], queryFn: () => api<Report>(`/reports/monthly?month=${month}`) })
   const r = report.data
+  const qarz = useOpenLoans()
 
   return (
     <div className="flex flex-col gap-4">
@@ -147,6 +149,40 @@ export default function Dashboard() {
           })}
         </CardContent>
       </Card>
+
+      {/* qarz — the loans page is two taps away in More, so the balances live here too */}
+      {qarz.open.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Qarz</CardTitle>
+            <CardAction>
+              <Button variant="ghost" size="sm" render={<Link to="/loans">Open</Link>} />
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {qarz.owedToUs > 0 && (
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="text-muted-foreground">Owed to us</span>
+                <Amount value={qarz.owedToUs} flow="in" className="text-sm" />
+              </div>
+            )}
+            {qarz.weOwe > 0 && (
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="text-muted-foreground">We owe</span>
+                <Amount value={qarz.weOwe} flow="out" className="text-sm" />
+              </div>
+            )}
+            {qarz.overdue.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="destructive">overdue</Badge>
+                {qarz.overdue.length === 1
+                  ? qarz.overdue[0].counterparty
+                  : `${qarz.overdue.length} loans past their due date`}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* spending by category */}
       {r && r.by_category.some((c) => c.type === 'expense') && (

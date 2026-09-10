@@ -30,7 +30,16 @@ type LoanDetail = Loan & { payments: Payment[] }
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
-const isOverdue = (l: Loan) => l.status === 'open' && !!l.due_date && l.due_date < todayLocal()
+export const isOverdue = (l: Loan) => l.status === 'open' && !!l.due_date && l.due_date < todayLocal()
+
+/** Open loans and their totals — Home and More both summarise them, this is the one source. */
+export function useOpenLoans() {
+  const { data } = useQuery({ queryKey: ['loans', 'open'], queryFn: () => api<Loan[]>('/loans?status=open') })
+  const open = data ?? []
+  const sum = (direction: Loan['direction']) =>
+    open.filter((l) => l.direction === direction).reduce((s, l) => s + l.outstanding, 0)
+  return { open, owedToUs: sum('lent'), weOwe: sum('borrowed'), overdue: open.filter(isOverdue) }
+}
 
 // every statement row shares this grid so the amounts line up in one column and the remove button
 // gets a gutter of its own — as a flex row it shoved the payment amounts out of line with the total

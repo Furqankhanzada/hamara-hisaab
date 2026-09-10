@@ -107,6 +107,15 @@ test('one loan per person: lend more, correct it, drop a wrong line', async ({ p
   await expect(page.getByText('Line removed')).toBeVisible()
   await expect(page.getByText('Rs 125,000').first()).toBeVisible()
 
+  // Home carries the balances too — the loans page is two taps deep
+  await page.keyboard.press('Escape')
+  await page.getByRole('link', { name: 'Home' }).click()
+  await expect(page.getByText('Qarz')).toBeVisible()
+  await expect(page.getByText('Owed to us')).toBeVisible()
+  await expect(page.getByText('Rs 125,000').first()).toBeVisible()
+  await page.getByRole('link', { name: 'Open' }).click()
+  await expect(page.getByRole('heading', { name: 'Loans / Qarz' })).toBeVisible()
+
   // money lent out counts as zakatable wealth
   await page.keyboard.press('Escape')
   await page.getByRole('link', { name: 'More' }).click()

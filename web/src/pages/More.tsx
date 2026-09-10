@@ -22,7 +22,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/u
 import { Switch } from '@/components/ui/switch'
 import { Amount, CURRENCIES, Confirm, PageHeader, ShareSwitch } from '@/components/shared'
 import type { Me } from '../App'
-import type { Loan } from './Loans'
+import { useOpenLoans } from './Loans'
 
 function copyText(text: string, what: string) {
   navigator.clipboard.writeText(text).then(
@@ -380,10 +380,7 @@ function ManageAccount({ a, onDone }: { a: Account; onDone: () => void }) {
 }
 
 function LoansSection() {
-  const loans = useQuery({ queryKey: ['loans', 'open'], queryFn: () => api<Loan[]>('/loans?status=open') })
-  const open = loans.data ?? []
-  const owedToUs = open.filter((l) => l.direction === 'lent').reduce((s, l) => s + l.outstanding, 0)
-  const weOwe = open.filter((l) => l.direction === 'borrowed').reduce((s, l) => s + l.outstanding, 0)
+  const { open, owedToUs, weOwe } = useOpenLoans()
 
   return (
     <Card>
