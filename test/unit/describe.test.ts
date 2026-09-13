@@ -21,6 +21,8 @@ describe('queued entry labels', () => {
     expect(describeEntry('POST', '/loans/097e9b10/payments', { amount: 50000, kind: 'advance' }))
       .toEqual({ label: 'Loan advance', amount: 50000 })
     expect(describeEntry('DELETE', '/loans/097e9b10/payments/abc', {})).toEqual({ label: 'Deleted loan line' })
+    expect(describeEntry('PATCH', '/loans/097e9b10/payments/abc', { amount: 1200 }))
+      .toEqual({ label: 'Edited loan line', amount: 1200 })
     expect(describeEntry('DELETE', '/loans/097e9b10', {})).toEqual({ label: 'Deleted loan' })
     expect(describeEntry('PATCH', '/loans/097e9b10', { counterparty: 'Ahmed' })).toEqual({ label: 'Loan update' })
   })

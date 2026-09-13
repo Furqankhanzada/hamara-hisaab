@@ -140,7 +140,7 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
       bind: ['loans', b.id, JSON.stringify({
         id: b.id, user_id: me?.id, counterparty: b.counterparty, direction: b.direction,
         principal: Number(b.principal), start_date: b.start_date ?? todayApp(), due_date: b.due_date ?? null,
-        status: 'open', visibility: b.visibility ?? 'private', note: b.note ?? null,
+        status: 'open', zakatable: b.zakatable ?? true, visibility: b.visibility ?? 'private', note: b.note ?? null,
       })],
     }]
   if ((m = p.match(/^\/loans\/([^/]+)$/)) && method === 'PATCH') return patchDoc('loans', m[1], b)
@@ -157,6 +157,17 @@ async function applyLocal(method: string, path: string, b: Row): Promise<Stmt[]>
     return [
       { sql: 'insert or replace into docs(collection, id, data) values(?,?,?)', bind: ['loan_payments', b.id, JSON.stringify(line)] },
       ...(await loanRestatus(loanId, line.kind === 'advance', (lines) => [...lines, line])),
+    ]
+  }
+  if ((m = p.match(/^\/loans\/([^/]+)\/payments\/([^/]+)$/)) && method === 'PATCH') {
+    const [, loanId, pmtId] = m
+    // the wire is snake_case, the mirrored line camelCase — a raw merge would leave a dead paid_on key
+    const edit: Row = { ...b }
+    if (b.paid_on !== undefined) { edit.paidOn = b.paid_on; delete edit.paid_on }
+    if (b.amount !== undefined) edit.amount = Number(b.amount)
+    return [
+      ...(await patchDoc('loan_payments', pmtId, edit)),
+      ...(await loanRestatus(loanId, true, (lines) => lines.map((l) => (l.id === pmtId ? { ...l, ...edit } : l)))),
     ]
   }
   if ((m = p.match(/^\/loans\/([^/]+)\/payments\/([^/]+)$/)) && method === 'DELETE') {

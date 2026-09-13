@@ -30,7 +30,7 @@ test('loan lifecycle: add, repay, settle with forgiveness, reopen', async ({ pag
   await page.getByText('Ahmed bhai').click()
   await expect(page.getByText('STATEMENT')).toBeVisible()
   await type(page.getByPlaceholder('Repayment amount'), '10000')
-  await type(page.getByLabel('Description'), 'Raast transfer')
+  await type(page.getByLabel('Description', { exact: true }), 'Raast transfer')
   await page.getByLabel('Date', { exact: true }).fill(shift(-5))
   await page.getByRole('button', { name: 'Record', exact: true }).click()
   await expect(page.getByText('Repayment recorded')).toBeVisible()
@@ -81,24 +81,36 @@ test('one loan per person: lend more, correct it, drop a wrong line', async ({ p
   await expect(page.getByPlaceholder('Amount given')).toBeVisible()
 
   await type(page.getByPlaceholder('Amount given'), '50000')
-  await type(page.getByLabel('Description'), 'shop rent')
+  await type(page.getByLabel('Description', { exact: true }), 'shop rent')
   await page.getByRole('button', { name: 'Record', exact: true }).click()
   await expect(page.getByText('Added to the loan')).toBeVisible()
   await expect(page.getByText(/Lent more — shop rent/)).toBeVisible()
   await expect(page.getByText('Rs 175,000').first()).toBeVisible() // 125k + 50k, one record
 
-  // fix the misspelled name and clear the due date
+  // correct that line in place: amount, date and description
+  await page.getByRole('button', { name: /^Edit/ }).last().click()
+  await type(page.getByLabel('Line amount'), '60000')
+  await page.getByLabel('Line date').fill(shift(-2))
+  await type(page.getByLabel('Line description'), 'shop rent + bijli')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Line updated')).toBeVisible()
+  await expect(page.getByText(/Lent more — shop rent \+ bijli/)).toBeVisible()
+  await expect(page.getByText('Rs 185,000').first()).toBeVisible() // 125k + 60k
+
+  // fix the misspelled name, the description, and clear the due date
   await page.getByText('Edit details').click()
   await type(page.getByLabel('Person'), 'Amanullah Khan')
+  await type(page.getByLabel('Loan description'), 'Old loan, now a shop float')
   await page.getByLabel('Due date').fill('')
   await page.getByRole('button', { name: 'Save changes' }).click()
   await expect(page.getByText('Loan updated')).toBeVisible()
   await expect(page.getByRole('heading', { name: /Amanullah Khan/ })).toBeVisible()
+  await expect(page.getByText(/Old loan, now a shop float/)).toBeVisible()
 
   // the advance was a mistake — removing a line asks first, so a stray tap costs nothing
   await page.getByRole('button', { name: /^Remove/ }).last().click()
   const remove = page.getByRole('alertdialog')
-  await expect(remove.getByText(/Lent more Rs 50,000/)).toBeVisible()
+  await expect(remove.getByText(/Lent more Rs 60,000/)).toBeVisible() // the edited amount
   await remove.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByText(/Lent more — shop rent/)).toBeVisible() // still there
 
@@ -121,4 +133,18 @@ test('one loan per person: lend more, correct it, drop a wrong line', async ({ p
   await page.getByRole('link', { name: 'More' }).click()
   await page.getByText('Breakdown').click()
   await expect(page.getByText('lent to Amanullah Khan')).toBeVisible()
+
+  // …until you say it should not: the switch is a real control, so assert it flipped
+  await page.getByRole('link', { name: 'Open loans page' }).click()
+  await page.getByText('Amanullah Khan').first().click()
+  const zakat = page.getByRole('switch', { name: /Counted for zakat/ })
+  await expect(zakat).toHaveAttribute('aria-checked', 'true')
+  await zakat.click()
+  await expect(page.getByText('Excluded from zakat')).toBeVisible()
+  await expect(zakat).toHaveAttribute('aria-checked', 'false')
+
+  await page.keyboard.press('Escape')
+  await page.getByRole('link', { name: 'More' }).click()
+  await page.getByText('Breakdown').click()
+  await expect(page.getByText('lent to Amanullah Khan')).toHaveCount(0)
 })

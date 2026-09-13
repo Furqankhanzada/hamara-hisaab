@@ -87,12 +87,13 @@ describe('loans / qarz', () => {
 
     const fixed = await json(`/api/v1/loans/${loan.id}`, {
       method: 'PATCH', key: u.key,
-      json: { counterparty: 'Amanullah Khan', principal: 125000, start_date: '2026-08-22', due_date: '2026-12-31' },
+      json: { counterparty: 'Amanullah Khan', principal: 125000, start_date: '2026-08-22', due_date: '2026-12-31', note: 'shop float' },
     })
     expect(fixed.counterparty).toBe('Amanullah Khan')
     expect(fixed.outstanding).toBe(125000)
     expect(fixed.start_date).toBe('2026-08-22')
     expect(fixed.due_date).toBe('2026-12-31')
+    expect(fixed.note).toBe('shop float')
     expect(await json(`/api/v1/loans/${loan.id}`, { method: 'PATCH', key: u.key, json: { due_date: null } })
       .then((l: { due_date: string | null }) => l.due_date)).toBeNull()
 
@@ -117,6 +118,75 @@ describe('loans / qarz', () => {
     expect(await json(`/api/v1/loans/${loan.id}`, { method: 'DELETE', key: u.key })).toEqual({ deleted: true })
     expect((await req(`/api/v1/loans/${loan.id}`, { key: u.key })).status).toBe(404)
     expect(await json('/api/v1/loans', { key: u.key })).toHaveLength(0)
+  })
+
+  it('corrects a statement line in place', async () => {
+    const u = await makeUser()
+    const loan = await json('/api/v1/loans', { key: u.key, json: { counterparty: 'Jhon', direction: 'lent', principal: 5000 } })
+    const withLine = await json(`/api/v1/loans/${loan.id}/payments`, { key: u.key, json: { amount: 1000 } })
+    const lineId = withLine.payments[0].id
+    await json(`/api/v1/loans/${loan.id}/payments`, { key: u.key, json: { amount: 500, kind: 'advance' } })
+
+    const fixed = await json(`/api/v1/loans/${loan.id}/payments/${lineId}`, {
+      method: 'PATCH', key: u.key, json: { amount: 1200, paid_on: '2026-09-01', note: 'on naya pay' },
+    })
+    const line = fixed.payments.find((p: { id: string }) => p.id === lineId)
+    expect(line.amount).toBe('1200.00')
+    expect(line.paidOn).toBe('2026-09-01')
+    expect(line.note).toBe('on naya pay')
+    expect(fixed.outstanding).toBe(4300) // 5000 + 500 advance - 1200 repaid
+    expect(fixed.payments).toHaveLength(2) // the other line is untouched
+
+    // editing the balance to zero settles it, and editing it back up reopens it
+    const settled = await json(`/api/v1/loans/${loan.id}/payments/${lineId}`, {
+      method: 'PATCH', key: u.key, json: { amount: 5500 },
+    })
+    expect(settled.status).toBe('settled')
+    const reopened = await json(`/api/v1/loans/${loan.id}/payments/${lineId}`, {
+      method: 'PATCH', key: u.key, json: { amount: 1000 },
+    })
+    expect(reopened.status).toBe('open')
+    expect(reopened.outstanding).toBe(4500)
+
+    // a line on someone else's private loan is not editable
+    const stranger = await makeUser()
+    expect((await req(`/api/v1/loans/${loan.id}/payments/${lineId}`, {
+      method: 'PATCH', key: stranger.key, json: { amount: 1 },
+    })).status).toBe(404)
+  })
+
+  it('a loan can be kept out of the zakat calculation', async () => {
+    const u = await makeUser()
+    await json('/api/v1/accounts', { key: u.key, json: { name: 'Cash', balance: 100000 } })
+    const lent = await json('/api/v1/loans', { key: u.key, json: { counterparty: 'Doubtful', direction: 'lent', principal: 30000 } })
+    const borrowed = await json('/api/v1/loans', { key: u.key, json: { counterparty: 'Bank', direction: 'borrowed', principal: 40000 } })
+    expect(lent.zakatable).toBe(true) // counted unless you say otherwise
+
+    let z = await json('/api/v1/zakat', { key: u.key })
+    expect(z.zakatable_base).toBe(90000)
+
+    // a receivable you have written off stops being wealth — without pretending you forgave it
+    await json(`/api/v1/loans/${lent.id}`, { method: 'PATCH', key: u.key, json: { zakatable: false } })
+    z = await json('/api/v1/zakat', { key: u.key })
+    expect(z.zakatable_assets.receivables).toEqual([])
+    expect(z.zakatable_base).toBe(60000)
+    // and it is still an open loan, still owed
+    const open = await json('/api/v1/loans?status=open', { key: u.key })
+    expect(open.map((l: { counterparty: string }) => l.counterparty).sort()).toEqual(['Bank', 'Doubtful'])
+
+    // the flag works the same on the debt side — excluded means not deducted
+    await json(`/api/v1/loans/${borrowed.id}`, { method: 'PATCH', key: u.key, json: { zakatable: false } })
+    z = await json('/api/v1/zakat', { key: u.key })
+    expect(z.deductible_debts).toEqual([])
+    expect(z.zakatable_base).toBe(100000)
+
+    // created excluded from the start
+    const off = await json('/api/v1/loans', {
+      key: u.key, json: { counterparty: 'Never', direction: 'lent', principal: 9000, zakatable: false },
+    })
+    expect(off.zakatable).toBe(false)
+    z = await json('/api/v1/zakat', { key: u.key })
+    expect(z.zakatable_base).toBe(100000)
   })
 
   it('overdue loans surface in the daily brief', async () => {

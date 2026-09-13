@@ -177,6 +177,10 @@ api.post('/loans/:id/payments', async (c) => {
   const row = await loans.addLoanPayment(hctx(c), c.req.param('id'), loans.loanPaymentInput.parse(await c.req.json()))
   return row ? c.json(row, 201) : c.json({ error: 'not found' }, 404)
 })
+api.patch('/loans/:id/payments/:pid', async (c) => {
+  const row = await loans.updateLoanPayment(hctx(c), c.req.param('id'), c.req.param('pid'), loans.loanPaymentUpdate.parse(await c.req.json()))
+  return row ? c.json(row) : c.json({ error: 'not found' }, 404)
+})
 api.delete('/loans/:id/payments/:pid', async (c) => {
   const row = await loans.deleteLoanPayment(hctx(c), c.req.param('id'), c.req.param('pid'))
   return row ? c.json(row) : c.json({ error: 'not found' }, 404)

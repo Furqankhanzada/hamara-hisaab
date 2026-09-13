@@ -133,6 +133,7 @@ export const loans = pgTable('loans', {
   dueDate: date('due_date'),
   note: text('note'),
   status: text('status', { enum: ['open', 'settled'] }).notNull().default('open'),
+  zakatable: boolean('zakatable').notNull().default(true),
   visibility: text('visibility', { enum: ['shared', 'private'] }).notNull().default('private'),
 })
 

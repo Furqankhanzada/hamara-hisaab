@@ -19,7 +19,8 @@ export function describeEntry(method: string, path: string, body: Row): { label:
 
   if (/^\/loans\/[^/]+\/payments$/.test(p))
     return { label: body.kind === 'advance' ? 'Loan advance' : 'Loan payment', amount: num(body.amount) }
-  if (/^\/loans\/[^/]+\/payments\/[^/]+$/.test(p)) return { label: 'Deleted loan line' }
+  if (/^\/loans\/[^/]+\/payments\/[^/]+$/.test(p))
+    return method === 'DELETE' ? { label: 'Deleted loan line' } : { label: 'Edited loan line', amount: num(body.amount) }
   if (p === '/loans') return { label: `Loan · ${body.counterparty ?? 'new'}`, amount: num(body.principal) }
   if (/^\/loans\/[^/]+$/.test(p))
     return method === 'DELETE' ? { label: 'Deleted loan' } : { label: 'Loan update' }

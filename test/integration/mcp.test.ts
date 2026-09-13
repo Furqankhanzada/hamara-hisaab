@@ -88,6 +88,25 @@ describe('MCP endpoint', () => {
     expect(missing.body.result.isError).toBe(true)
   })
 
+  it('an agent can correct a statement line it found', async () => {
+    const u = await makeUser()
+    const add = await mcp(u.key, 'tools/call', {
+      name: 'add_loan', arguments: { counterparty: 'Jhon', direction: 'lent', principal: 5000 },
+    }, 50)
+    const loanId = JSON.parse(add.body.result.content[0].text).id
+    await mcp(u.key, 'tools/call', { name: 'record_loan_payment', arguments: { loan_id: loanId, amount: 1000 } }, 51)
+
+    const got = await mcp(u.key, 'tools/call', { name: 'get_loan', arguments: { loan_id: loanId } }, 52)
+    const paymentId = JSON.parse(got.body.result.content[0].text).payments[0].id
+
+    const fixed = await mcp(u.key, 'tools/call', {
+      name: 'update_loan_payment', arguments: { loan_id: loanId, payment_id: paymentId, amount: 1500, note: 'on naya pay' },
+    }, 53)
+    const statement = JSON.parse(fixed.body.result.content[0].text)
+    expect(statement.outstanding).toBe(3500)
+    expect(statement.payments[0].note).toBe('on naya pay')
+  })
+
   it('advertises tool annotations by convention', async () => {
     const u = await makeUser()
     const list = await mcp(u.key, 'tools/list')

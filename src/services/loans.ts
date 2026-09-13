@@ -15,6 +15,7 @@ export const loanInput = z.object({
   principal: z.coerce.number().positive().describe('Opening amount in PKR — lend more later with an advance instead of a second loan'),
   start_date: dateStr.optional().describe('Defaults to today'),
   due_date: dateStr.optional().describe('When it is expected back — overdue loans surface in the daily brief'),
+  zakatable: z.boolean().default(true).describe('Counts in the zakat calculation — money lent as an asset, money borrowed as a deduction. Turn off for a debt you do not expect to see again.'),
   visibility: visibilityInput,
   note: z.string().optional().describe('What it was for, so the statement reads back later'),
 })
@@ -26,7 +27,15 @@ export const loanUpdate = z.object({
   due_date: dateStr.nullable().optional().describe('null clears the due date'),
   note: z.string().optional(),
   status: z.enum(['open', 'settled']).optional().describe("'settled' closes it; any remainder counts as forgiven"),
+  zakatable: z.boolean().optional().describe('Whether it counts in the zakat calculation'),
   visibility: z.enum(['shared', 'private']).optional(),
+})
+
+export const loanPaymentUpdate = z.object({
+  amount: z.coerce.number().positive().optional(),
+  kind: z.enum(['repayment', 'advance']).optional().describe('Fixes a line logged as the wrong type'),
+  paid_on: dateStr.optional(),
+  note: z.string().optional(),
 })
 
 const loanVisibleTo = (userId: string) => or(eq(loans.visibility, 'shared'), eq(loans.userId, userId))
@@ -50,6 +59,7 @@ export async function addLoan(ctx: Ctx, input: z.infer<typeof loanInput>) {
     principal: input.principal.toFixed(2),
     startDate: input.start_date ?? todayIn(ctx.timezone),
     dueDate: input.due_date,
+    zakatable: input.zakatable,
     visibility: input.visibility,
     note: input.note,
   }).onConflictDoNothing().returning()
@@ -120,13 +130,20 @@ export async function addLoanPayment(ctx: Ctx, loanId: string, input: z.infer<ty
     paidOn: input.paid_on ?? todayIn(ctx.timezone),
     note: input.note,
   }).onConflictDoNothing()
-  const updated = await getLoan(ctx, loanId)
-  if (!updated) return null
-  const outstanding = Number(updated.outstanding)
-  if (loan.status === 'open' && outstanding <= 0) return setStatus(ctx, loanId, 'settled')
-  // lending more to someone you had written off brings the loan back to life
-  if (loan.status === 'settled' && input.kind === 'advance' && outstanding > 0) return setStatus(ctx, loanId, 'open')
-  return updated
+  // only new money revives a loan someone had written off; a late repayment leaves it settled
+  return restatus(ctx, loanId, input.kind === 'advance')
+}
+
+export async function updateLoanPayment(ctx: Ctx, loanId: string, paymentId: string, patch: z.infer<typeof loanPaymentUpdate>) {
+  if (!(await visibleLoan(ctx, loanId))) return null
+  const { amount, paid_on, ...rest } = patch
+  const [row] = await db.update(loanPayments).set({
+    ...rest,
+    ...(amount !== undefined && { amount: amount.toFixed(2) }),
+    ...(paid_on !== undefined && { paidOn: paid_on }),
+  }).where(and(eq(loanPayments.id, paymentId), eq(loanPayments.loanId, loanId))).returning()
+  if (!row) return null
+  return restatus(ctx, loanId, true)
 }
 
 export async function deleteLoanPayment(ctx: Ctx, loanId: string, paymentId: string) {
@@ -134,10 +151,18 @@ export async function deleteLoanPayment(ctx: Ctx, loanId: string, paymentId: str
   const [gone] = await db.delete(loanPayments)
     .where(and(eq(loanPayments.id, paymentId), eq(loanPayments.loanId, loanId))).returning()
   if (!gone) return null
+  return restatus(ctx, loanId, true)
+}
+
+/** Settle or reopen after the statement changed. `revive` reopens a settled loan whose balance is
+ *  back above zero — true for corrections (an edited or removed line), since the settle was based
+ *  on figures that no longer exist. Re-settling is one tap; a wrong balance left standing is worse. */
+async function restatus(ctx: Ctx, loanId: string, revive: boolean) {
   const updated = await getLoan(ctx, loanId)
-  // ponytail: removing a line always raises the balance, so a settled loan reopens — including one
-  // settled by forgiveness. Re-settling is one tap; silently keeping a wrong balance is not.
-  if (updated && updated.status === 'settled' && Number(updated.outstanding) > 0) return setStatus(ctx, loanId, 'open')
+  if (!updated) return null
+  const outstanding = Number(updated.outstanding)
+  if (updated.status === 'open' && outstanding <= 0) return setStatus(ctx, loanId, 'settled')
+  if (updated.status === 'settled' && revive && outstanding > 0) return setStatus(ctx, loanId, 'open')
   return updated
 }
 
