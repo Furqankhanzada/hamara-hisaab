@@ -1,0 +1,1 @@
+ALTER TABLE "loans" ADD COLUMN "zakatable" boolean DEFAULT true NOT NULL;

@@ -45,8 +45,9 @@ export async function zakatSummary(ctx: Ctx) {
   // money you lent out is still your wealth; money you owe comes off it
   const openLoans = await listLoans(ctx, 'open')
   const asRow = (l: (typeof openLoans)[number]) => ({ counterparty: l.counterparty as string, value: l.outstanding })
-  const receivables = openLoans.filter((l) => l.direction === 'lent').map(asRow)
-  const debts = openLoans.filter((l) => l.direction === 'borrowed').map(asRow)
+  const counted = openLoans.filter((l) => l.zakatable !== false) // a loan can be kept out of the calculation
+  const receivables = counted.filter((l) => l.direction === 'lent').map(asRow)
+  const debts = counted.filter((l) => l.direction === 'borrowed').map(asRow)
 
   const fxMap = await latestRatesMap(ctx.baseCurrency)
   for (const r of investments.rows as Record<string, unknown>[]) {

@@ -143,6 +143,10 @@ function buildServer(ctx: Ctx) {
   tool('delete_loan', 'Delete a loan and its whole statement — for one recorded by mistake. Settle it instead if the money was really lent.',
     { loan_id: z.string() },
     async (a: { loan_id: string }) => (await loans.deleteLoan(ctx, a.loan_id)) ? { deleted: true } : orNotFound(null))
+  tool('update_loan_payment', "Correct one line on a loan's statement — amount, date, description, or the type it was logged as. Get payment_id from get_loan.",
+    { loan_id: z.string(), payment_id: z.string(), ...loans.loanPaymentUpdate.shape },
+    async (a: { loan_id: string; payment_id: string }) =>
+      orNotFound(await loans.updateLoanPayment(ctx, a.loan_id, a.payment_id, loans.loanPaymentUpdate.parse(a))))
   tool('delete_loan_payment', 'Remove one line from a loan statement (reopens the loan if it was settled). Get payment_id from get_loan.',
     { loan_id: z.string(), payment_id: z.string() },
     async (a: { loan_id: string; payment_id: string }) => orNotFound(await loans.deleteLoanPayment(ctx, a.loan_id, a.payment_id)))

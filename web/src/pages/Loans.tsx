@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, X } from 'lucide-react'
+import { Pencil, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, baseSymbol, todayLocal } from '../api'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -22,7 +23,7 @@ export type Loan = {
   id: string; counterparty: string; direction: 'lent' | 'borrowed'; principal: string
   start_date: string; due_date: string | null; note: string | null; status: 'open' | 'settled'
   paid: number; advanced: number; outstanding: number
-  visibility: 'shared' | 'private'
+  zakatable: boolean; visibility: 'shared' | 'private'
 }
 type Payment = { id: string; amount: string; kind: 'repayment' | 'advance'; paidOn: string; note: string | null }
 type LoanDetail = Loan & { payments: Payment[] }
@@ -43,7 +44,7 @@ export function useOpenLoans() {
 
 // every statement row shares this grid so the amounts line up in one column and the remove button
 // gets a gutter of its own — as a flex row it shoved the payment amounts out of line with the total
-const STATEMENT_ROW = 'grid grid-cols-[1fr_auto_1.25rem] items-baseline gap-2'
+const STATEMENT_ROW = 'grid grid-cols-[1fr_auto_3.25rem] items-baseline gap-2'
 
 export default function Loans() {
   const [status, setStatus] = useState<'open' | 'settled'>('open')
@@ -214,6 +215,7 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
   const qc = useQueryClient()
   const loan = useQuery({ queryKey: ['loan', id], queryFn: () => api<LoanDetail>(`/loans/${id}`) })
   const [entry, setEntry] = useState({ kind: 'repayment', amount: '', note: '', on: todayLocal() })
+  const [editingId, setEditingId] = useState<string | null>(null)
   const l = loan.data
 
   function refresh() {
@@ -231,6 +233,11 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
     setEntry({ ...entry, amount: '', note: '' })
     refresh()
     toast(entry.kind === 'advance' ? 'Added to the loan' : 'Repayment recorded')
+  }
+
+  async function saveEntry(paymentId: string, patch: { amount: number; paid_on: string; note: string }) {
+    await api(`/loans/${id}/payments/${paymentId}`, { method: 'PATCH', json: patch })
+    toast('Line updated')
   }
 
   async function removeEntry(paymentId: string) {
@@ -268,25 +275,38 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
           </div>
           {l.payments.map((p) => {
             const advance = p.kind === 'advance'
+            const what = advance ? moreLabel : lent ? 'Received' : 'Repaid'
             return (
-              <div key={p.id} className={cn(STATEMENT_ROW, 'border-t py-1.5 text-sm')}>
-                <span className="text-muted-foreground">
-                  {fmtDate(p.paidOn)} · {advance ? moreLabel : lent ? 'Received' : 'Repaid'}
-                  {p.note && <> — {p.note}</>}
-                </span>
-                <Amount value={p.amount} flow={advance !== lent ? 'in' : 'out'} signed className="text-sm" />
-                <Confirm
-                  title="Remove this line?"
-                  description={`${advance ? moreLabel : lent ? 'Received' : 'Repaid'} ${baseSymbol()} ${Number(p.amount).toLocaleString()} on ${fmtDate(p.paidOn)}. The balance goes back up by that much.`}
-                  actionLabel="Remove"
-                  onConfirm={() => removeEntry(p.id)}
-                  trigger={
-                    <button type="button" aria-label={`Remove ${fmtDate(p.paidOn)} line`}
-                      className="-m-2 self-center justify-self-end p-2 text-muted-foreground hover:text-destructive active:text-destructive">
-                      <X className="size-3.5" />
+              <div key={p.id} className="border-t">
+                <div className={cn(STATEMENT_ROW, 'py-1.5 text-sm')}>
+                  <span className="text-muted-foreground">
+                    {fmtDate(p.paidOn)} · {what}
+                    {p.note && <> — {p.note}</>}
+                  </span>
+                  <Amount value={p.amount} flow={advance !== lent ? 'in' : 'out'} signed className="text-sm" />
+                  <span className="flex items-center justify-self-end">
+                    <button type="button" aria-label={`Edit ${fmtDate(p.paidOn)} line`}
+                      className="p-2 text-muted-foreground hover:text-foreground active:text-foreground"
+                      onClick={() => setEditingId(editingId === p.id ? null : p.id)}>
+                      <Pencil className="size-3.5" />
                     </button>
-                  }
-                />
+                    <Confirm
+                      title="Remove this line?"
+                      description={`${what} ${baseSymbol()} ${Number(p.amount).toLocaleString()} on ${fmtDate(p.paidOn)}. The balance goes back up by that much.`}
+                      actionLabel="Remove"
+                      onConfirm={() => removeEntry(p.id)}
+                      trigger={
+                        <button type="button" aria-label={`Remove ${fmtDate(p.paidOn)} line`}
+                          className="p-2 text-muted-foreground hover:text-destructive active:text-destructive">
+                          <X className="size-3.5" />
+                        </button>
+                      }
+                    />
+                  </span>
+                </div>
+                {editingId === p.id && (
+                  <EditLine payment={p} onDone={() => { setEditingId(null); refresh() }} onSave={saveEntry} />
+                )}
               </div>
             )
           })}
@@ -308,6 +328,21 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
           refresh()
           toast(v ? 'Now visible to the household' : 'Now private to you')
         }} />
+
+        {/* a mirror cached before this shipped has no flag on its loans — absent reads as counted */}
+        <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
+          <span className="text-sm">
+            Counted for zakat
+            <span className="block text-xs text-muted-foreground">
+              {lent ? 'Money owed to you is wealth you hold' : 'What you owe comes off your zakatable wealth'}
+            </span>
+          </span>
+          <Switch checked={l.zakatable !== false} onCheckedChange={async (v: boolean) => {
+            await api(`/loans/${id}`, { method: 'PATCH', json: { zakatable: v } })
+            refresh()
+            toast(v ? 'Counted for zakat' : 'Excluded from zakat')
+          }} />
+        </label>
 
         {l.status === 'open' && (
           <form className="flex flex-col gap-2" onSubmit={addEntry}>
@@ -367,10 +402,48 @@ function LoanStatement({ id, onDone }: { id: string; onDone: () => void }) {
   )
 }
 
+/** Inline correction for one statement line. The type (repayment/advance) is API-only — a
+ *  mislogged line is rare and delete-then-re-add covers it. */
+function EditLine({ payment, onDone, onSave }: {
+  payment: Payment
+  onDone: () => void
+  onSave: (id: string, patch: { amount: number; paid_on: string; note: string }) => Promise<void>
+}) {
+  const [form, setForm] = useState({
+    amount: String(Number(payment.amount)), on: payment.paidOn, note: payment.note ?? '',
+  })
+
+  return (
+    <form
+      className="flex flex-col gap-2 pb-3"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        await onSave(payment.id, { amount: Number(form.amount), paid_on: form.on, note: form.note })
+        onDone()
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <InputGroup className="flex-1">
+          <InputGroupAddon>{baseSymbol()}</InputGroupAddon>
+          <InputGroupInput type="number" min="1" required aria-label="Line amount" className="amount"
+            value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+        </InputGroup>
+        <Input type="date" aria-label="Line date" className="w-auto" value={form.on}
+          onChange={(e) => setForm({ ...form, on: e.target.value })} />
+      </div>
+      <div className="flex items-center gap-2">
+        <Input aria-label="Line description" placeholder="What was it?" value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })} />
+        <Button type="submit" size="sm">Save</Button>
+      </div>
+    </form>
+  )
+}
+
 function EditLoan({ loan, onSaved }: { loan: LoanDetail; onSaved: () => void }) {
   const [form, setForm] = useState({
     counterparty: loan.counterparty, principal: String(Number(loan.principal)),
-    start: loan.start_date, due: loan.due_date ?? '',
+    start: loan.start_date, due: loan.due_date ?? '', note: loan.note ?? '',
   })
 
   async function save(e: React.FormEvent) {
@@ -379,7 +452,7 @@ function EditLoan({ loan, onSaved }: { loan: LoanDetail; onSaved: () => void }) 
       method: 'PATCH',
       json: {
         counterparty: form.counterparty, principal: Number(form.principal),
-        start_date: form.start, due_date: form.due || null,
+        start_date: form.start, due_date: form.due || null, note: form.note,
       },
     })
     onSaved()
@@ -397,6 +470,8 @@ function EditLoan({ loan, onSaved }: { loan: LoanDetail; onSaved: () => void }) 
           <InputGroupInput type="number" min="1" required aria-label="Opening amount" className="amount"
             value={form.principal} onChange={(e) => setForm({ ...form, principal: e.target.value })} />
         </InputGroup>
+        <Input aria-label="Loan description" placeholder="What was it for?" value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })} />
         <div className="grid grid-cols-2 gap-2">
           <Input type="date" aria-label="Start date" value={form.start}
             onChange={(e) => setForm({ ...form, start: e.target.value })} />
