@@ -11,15 +11,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Amount, Eyebrow, PageHeader } from '@/components/shared'
-import { TxForm, type Tx } from '../TxForm'
+import { TxForm, useTags, type Tx } from '../TxForm'
 import type { Me } from '../App'
 
 const PAGE = 50
 
-function MemberChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         'shrink-0 rounded-full px-4 py-1.5 text-sm whitespace-nowrap transition-colors',
         active ? 'bg-foreground font-medium text-background' : 'border border-line bg-card text-foreground',
@@ -33,13 +34,17 @@ function MemberChip({ active, onClick, children }: { active: boolean; onClick: (
 export default function Transactions() {
   const [q, setQ] = useState('')
   const [member, setMember] = useState<string | null>(null)
+  const [tag, setTag] = useState<string | null>(null)
   const [editing, setEditing] = useState<Tx | null>(null)
   const me = useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/me') })
   const members = me.data?.household?.members ?? []
+  const tags = useTags()
   const list = useInfiniteQuery({
-    queryKey: ['transactions', q, member],
+    queryKey: ['transactions', q, member, tag],
     queryFn: ({ pageParam }) =>
-      api<Tx[]>(`/transactions?limit=${PAGE}&offset=${pageParam}${q ? `&q=${encodeURIComponent(q)}` : ''}${member ? `&user_id=${member}` : ''}`),
+      api<Tx[]>(
+        `/transactions?limit=${PAGE}&offset=${pageParam}${q ? `&q=${encodeURIComponent(q)}` : ''}${member ? `&user_id=${member}` : ''}${tag ? `&tags=${encodeURIComponent(tag)}` : ''}`,
+      ),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => (last.length === PAGE ? pages.length * PAGE : undefined),
   })
@@ -72,11 +77,22 @@ export default function Transactions() {
 
       {members.length > 0 && (
         <div className="mb-4 flex gap-2 overflow-x-auto px-0.5 pb-0.5">
-          <MemberChip active={member === null} onClick={() => setMember(null)}>All</MemberChip>
+          <Chip active={member === null} onClick={() => setMember(null)}>All</Chip>
           {members.map((m) => (
-            <MemberChip key={m.id} active={member === m.id} onClick={() => setMember(m.id)}>
+            <Chip key={m.id} active={member === m.id} onClick={() => setMember(m.id)}>
               {m.name.split(' ')[0]}
-            </MemberChip>
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      {(tags.data?.length ?? 0) > 0 && (
+        <div className="mb-4 flex gap-2 overflow-x-auto px-0.5 pb-0.5">
+          <Chip active={tag === null} onClick={() => setTag(null)}>All</Chip>
+          {tags.data!.map((t) => (
+            <Chip key={t.id} active={tag === t.name} onClick={() => setTag(t.name)}>
+              {t.name}
+            </Chip>
           ))}
         </div>
       )}
@@ -91,9 +107,9 @@ export default function Transactions() {
       {!list.isLoading && rows.length === 0 && (
         <Empty>
           <EmptyHeader>
-            <EmptyTitle>{q ? 'No entries match' : 'The ledger is empty'}</EmptyTitle>
+            <EmptyTitle>{q || tag ? 'No entries match' : 'The ledger is empty'}</EmptyTitle>
             <EmptyDescription>
-              {q ? 'Try a different search.' : 'Add your first entry with the + button below.'}
+              {q || tag ? 'Try a different search.' : 'Add your first entry with the + button below.'}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

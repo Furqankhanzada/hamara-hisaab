@@ -142,6 +142,11 @@ export async function localRead(path: string): Promise<unknown> {
       conds.push('user_id = ?')
       bind.push(userId)
     }
+    const tags = params.get('tags')?.split(',').filter(Boolean) ?? []
+    for (const t of tags) {
+      conds.push('tags like ?')
+      bind.push(`%${JSON.stringify(t)}%`) // tags are a JSON string locally; "meat" won't match "meatball"
+    }
     return txRows(
       `${txSelect}${conds.length ? ` where ${conds.join(' and ')}` : ''} order by occurred_on desc, ord asc limit ? offset ?`,
       [...bind, limit, offset])
