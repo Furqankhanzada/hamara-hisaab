@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
+import { Search, SlidersHorizontal } from 'lucide-react'
 import { api } from '../api'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
@@ -36,6 +37,7 @@ export default function Transactions() {
   const [member, setMember] = useState<string | null>(null)
   const [tag, setTag] = useState<string | null>(null)
   const [editing, setEditing] = useState<Tx | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
   const me = useQuery({ queryKey: ['me'], queryFn: () => api<Me>('/me') })
   const members = me.data?.household?.members ?? []
   const tags = useTags()
@@ -67,7 +69,21 @@ export default function Transactions() {
 
   return (
     <div>
-      <PageHeader title="Ledger" />
+      <PageHeader
+        title="Ledger"
+        right={
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-pressed={showFilters}
+            aria-expanded={showFilters}
+            aria-label="Toggle filters"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <SlidersHorizontal />
+          </Button>
+        }
+      />
       <InputGroup className="mb-4">
         <InputGroupAddon>
           <Search />
@@ -75,7 +91,7 @@ export default function Transactions() {
         <InputGroupInput placeholder="Search notes, items, people…" value={q} onChange={(e) => setQ(e.target.value)} />
       </InputGroup>
 
-      {members.length > 0 && (
+      {showFilters && members.length > 0 && (
         <div className="mb-4 flex gap-2 overflow-x-auto px-0.5 pb-0.5">
           <Chip active={member === null} onClick={() => setMember(null)}>All</Chip>
           {members.map((m) => (
@@ -86,7 +102,7 @@ export default function Transactions() {
         </div>
       )}
 
-      {(tags.data?.length ?? 0) > 0 && (
+      {showFilters && (tags.data?.length ?? 0) > 0 && (
         <div className="mb-4 flex gap-2 overflow-x-auto px-0.5 pb-0.5">
           <Chip active={tag === null} onClick={() => setTag(null)}>All</Chip>
           {tags.data!.map((t) => (
