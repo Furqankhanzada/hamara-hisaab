@@ -95,3 +95,30 @@ test('infinite scroll streams older entries from the local mirror', async ({ pag
   }
   await expect(page.getByText('very old entry')).toBeVisible()
 })
+
+test('tag filter chips narrow the ledger and clear from the local mirror', async ({ page }) => {
+  await onboard(page)
+
+  await page.request.post('/api/v1/tags', { data: { name: 'meat' } })
+  await page.request.post('/api/v1/transactions', {
+    data: { type: 'expense', amount: 500, category: 'Groceries', note: 'tagged entry', tags: ['meat'] },
+  })
+  await page.request.post('/api/v1/transactions', {
+    data: { type: 'expense', amount: 250, category: 'Other', note: 'untagged entry' },
+  })
+  await page.reload() // pull the seeded snapshot into the local mirror
+
+  await page.getByRole('link', { name: 'Ledger' }).click()
+  await expect(page.getByText('tagged entry', { exact: true })).toBeVisible()
+  await expect(page.getByText('untagged entry', { exact: true })).toBeVisible()
+
+  const meatChip = page.getByRole('button', { name: 'meat', exact: true })
+  await expect(meatChip).toHaveAttribute('aria-pressed', 'false')
+  await meatChip.click()
+  await expect(meatChip).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('tagged entry', { exact: true })).toBeVisible()
+  await expect(page.getByText('untagged entry', { exact: true })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'All', exact: true }).last().click()
+  await expect(page.getByText('untagged entry', { exact: true })).toBeVisible()
+})
