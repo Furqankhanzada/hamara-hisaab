@@ -16,6 +16,9 @@ test('onboarding → add expense via drawer → visible in ledger and dashboard'
   await expect(page.getByText('e2e groceries run')).toBeVisible()
   await expect(page.getByText('Rs 1,234').first()).toBeVisible()
 
+  // filters are hidden until the toggle is opened
+  await page.getByRole('button', { name: 'Toggle filters' }).click()
+
   // member filter chips: scoping to yourself keeps your entries; All restores
   await page.getByRole('button', { name: 'E2E', exact: true }).click()
   await expect(page.getByText('e2e groceries run')).toBeVisible()
@@ -112,6 +115,9 @@ test('tag filter chips narrow the ledger and clear from the local mirror', async
   await expect(page.getByText('tagged entry', { exact: true })).toBeVisible()
   await expect(page.getByText('untagged entry', { exact: true })).toBeVisible()
 
+  // filters are hidden until the toggle is opened
+  await page.getByRole('button', { name: 'Toggle filters' }).click()
+
   const meatChip = page.getByRole('button', { name: 'meat', exact: true })
   await expect(meatChip).toHaveAttribute('aria-pressed', 'false')
   await meatChip.click()
@@ -121,4 +127,30 @@ test('tag filter chips narrow the ledger and clear from the local mirror', async
 
   await page.getByRole('button', { name: 'All', exact: true }).last().click()
   await expect(page.getByText('untagged entry', { exact: true })).toBeVisible()
+})
+
+test('filter icon toggles the member and tag chip rows', async ({ page }) => {
+  await onboard(page)
+  await page.request.post('/api/v1/tags', { data: { name: 'meat' } })
+  await page.reload() // pull the seeded tag into the local mirror
+
+  await page.getByRole('link', { name: 'Ledger' }).click()
+
+  const toggle = page.getByRole('button', { name: 'Toggle filters' })
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'E2E', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'meat', exact: true })).toHaveCount(0)
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('button', { name: 'E2E', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'meat', exact: true })).toBeVisible()
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'E2E', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'meat', exact: true })).toHaveCount(0)
 })
